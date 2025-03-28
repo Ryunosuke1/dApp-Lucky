@@ -27,6 +27,20 @@ const researchOutputSchema = z.object({
 // Type representing the structured output
 export type DeepResearchOutput = z.infer<typeof researchOutputSchema>;
 
+// Make sure the overview is never empty
+export function ensureValidResearchOutput(data: Partial<DeepResearchOutput>): DeepResearchOutput {
+  return {
+    overview: data.overview || "情報が十分に得られませんでした。別のdAppを試すか、API設定を確認してください。",
+    features: data.features || [],
+    developments: data.developments || [],
+    sentiment: data.sentiment || { positive: 50, count: undefined },
+    competitors: data.competitors || [],
+    strengths: data.strengths || [],
+    weaknesses: data.weaknesses || [],
+    futureOutlook: data.futureOutlook || "将来の見通しについての情報は限られています。"
+  };
+}
+
 /**
  * Create a system prompt for the initial research
  */

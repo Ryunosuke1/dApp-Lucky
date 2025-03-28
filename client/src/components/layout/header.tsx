@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { metaMask } from "wagmi/connectors";
-import { Wallet, ChevronDown } from "lucide-react";
+import { Wallet, ChevronDown, Settings } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,6 +10,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { ApiSettings, ApiSettingsModal } from "@/components/api-settings-modal";
+import { useApiSettings } from "@/hooks/use-api-settings";
 
 export function Header() {
   const { address, isConnected } = useAccount({
@@ -24,6 +26,10 @@ export function Header() {
   const { disconnect } = useDisconnect();
   const [isConnecting, setIsConnecting] = useState(false);
   const { toast } = useToast();
+  
+  // API設定のための状態
+  const [isApiSettingsOpen, setIsApiSettingsOpen] = useState(false);
+  const { settings, saveSettings } = useApiSettings();
   
   const handleWalletConnect = async () => {
     if (isConnected) return;
@@ -61,7 +67,17 @@ export function Header() {
           </div>
           </div>
           
-          <div className="flex items-center">
+          <div className="flex items-center space-x-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsApiSettingsOpen(true)}
+              title="API設定"
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <Settings className="h-5 w-5" />
+            </Button>
+            
             {isConnected ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -100,6 +116,21 @@ export function Header() {
                 )}
               </Button>
             )}
+            
+            {/* API設定モーダル */}
+            <ApiSettingsModal
+              isOpen={isApiSettingsOpen}
+              onClose={() => setIsApiSettingsOpen(false)}
+              initialSettings={settings}
+              onSave={(newSettings) => {
+                saveSettings(newSettings);
+                setIsApiSettingsOpen(false);
+                toast({
+                  title: "API設定を保存しました",
+                  description: "新しいAPI設定が保存されました。",
+                });
+              }}
+            />
           </div>
         </div>
       </div>

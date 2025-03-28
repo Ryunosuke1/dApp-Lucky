@@ -9,7 +9,7 @@ import { DApp } from "@/types/dapp";
 import { useToast } from "@/hooks/use-toast";
 import { performResearch, ResearchResponse } from "@/lib/openrouter-service";
 import { ApiSettings } from "./api-settings-modal";
-import { DeepResearchOutput } from "@/lib/langchain-research";
+import { DeepResearchOutput, ensureValidResearchOutput } from "@/lib/langchain-research";
 
 interface DeepResearchPanelProps {
   dapp: DApp;
@@ -95,17 +95,11 @@ export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPa
         // Check if we have structured data from LangChain
         if (data.structured) {
           console.log("Using structured data from LangChain");
-          const structuredOutput = data.structured;
+          // Use our validation function to ensure all fields are present
+          const structuredOutput = ensureValidResearchOutput(data.structured);
           
           const researchData = {
-            overview: structuredOutput.overview || "No overview available",
-            features: structuredOutput.features || [],
-            developments: structuredOutput.developments || [],
-            sentiment: structuredOutput.sentiment || { positive: 50, count: undefined },
-            competitors: structuredOutput.competitors || [],
-            strengths: structuredOutput.strengths || [],
-            weaknesses: structuredOutput.weaknesses || [],
-            futureOutlook: structuredOutput.futureOutlook,
+            ...structuredOutput,
             useClientApi: !!apiSettings?.apiKey
           };
           
@@ -473,11 +467,16 @@ export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPa
                   </div>
                 )}
                 
-                <div className="flex items-center justify-center gap-2 mt-5 pt-4 border-t border-gray-200 text-center">
-                  <span className="text-xs text-gray-500">
-                    Research performed using {research.useClientApi ? 'client-side API with LangChain' : 'server-side API'}.
-                  </span>
-                  {research.useClientApi && <Zap className="h-3 w-3 text-amber-500" />}
+                <div className="flex flex-col items-center justify-center gap-2 mt-5 pt-4 border-t border-gray-200 text-center">
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-gray-500">
+                      Research performed using {research.useClientApi ? 'client-side API with LangChain' : 'server-side API'}.
+                    </span>
+                    {research.useClientApi && <Zap className="h-3 w-3 text-amber-500" />}
+                  </div>
+                  <div className="mt-2 text-xs text-gray-400 max-w-md">
+                    <p>この調査情報はAIによって生成されており、一部の情報は不正確または古い可能性があります。重要な判断を行う前に必ず公式の情報源を確認してください。Chain-of-Thoughtプロセスとウェブデータを使用して分析されています。</p>
+                  </div>
                 </div>
               </div>
             ) : (
