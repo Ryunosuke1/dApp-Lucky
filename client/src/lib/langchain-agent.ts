@@ -1,27 +1,35 @@
 import { ChatOpenAI } from "@langchain/openai";
-import {
-  AgentStep,
-  AgentActionOutputParser,
-  AgentAction,
-  AgentFinish,
-} from "langchain/agents";
 import { DynamicTool } from "@langchain/core/tools";
-import { formatToOpenAIFunctionMessages } from "langchain/agents/format_utils";
-import { RunnableSequence } from "@langchain/core/runnables";
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
 import {
   ChatPromptTemplate,
   MessagesPlaceholder,
-  PromptTemplate,
 } from "@langchain/core/prompts";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { Tool } from "@langchain/core/tools";
-import { renderTextDescription } from "langchain/tools/render";
+import { RunnableSequence } from "@langchain/core/runnables";
 import { DApp } from "@shared/schema";
 import { ApiSettings } from "@shared/schema";
 
+// Define interfaces for our custom agent implementation
+interface AgentFinish {
+  returnValues: Record<string, any>;
+  log: string;
+}
+
+interface AgentAction {
+  tool: string;
+  toolInput: string;
+  log: string;
+}
+
+interface AgentStep {
+  action: AgentAction;
+  observation: string;
+}
+
 // Custom output parser for the agent's responses
-class ChainOfThoughtOutputParser implements AgentActionOutputParser {
+class ChainOfThoughtOutputParser {
   async parse(text: string): Promise<AgentAction | AgentFinish> {
     try {
       // If the text includes a specific indicator that the agent is done

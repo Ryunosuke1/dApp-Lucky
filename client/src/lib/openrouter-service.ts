@@ -2,8 +2,8 @@ import axios from "axios";
 import { ApiSettings } from "@/components/api-settings-modal";
 import { apiRequest } from "@/lib/queryClient";
 import { DApp } from "@/types/dapp";
-import { performLangChainResearch, performSimpleLangChainResearch, DeepResearchOutput, ensureValidResearchOutput } from "./langchain-research";
-import { performAgentResearch } from "./langchain-agent";
+import { DeepResearchOutput, ensureValidResearchOutput } from "./langchain-research";
+import { performStructuredResearch, performSimpleTextResearch } from "./langchain-structured";
 
 export interface ResearchRequest {
   dappName: string;
@@ -45,7 +45,7 @@ async function performClientResearch(
   request: ResearchRequest,
   apiSettings: ApiSettings
 ): Promise<ResearchResponse> {
-  console.log("Performing client-side research with LangChain");
+  console.log("Performing client-side research with LangChain structured output");
   
   try {
     // Convert request to DApp for LangChain
@@ -57,111 +57,108 @@ async function performClientResearch(
       chains: request.chains,
     };
     
-    // First, try the newer Agent-based Chain-of-Thought approach
+    // Try the new structured output approach
     try {
-      console.log("Attempting Chain-of-Thought Agent research");
+      console.log("Attempting new structured output with LangChain");
       
-      // Use the Agent-based implementation
-      const agentResearch = await performAgentResearch(dapp, apiSettings);
+      // Use the structured output implementation
+      const structuredOutput = await performStructuredResearch(dapp, apiSettings);
       
-      if (agentResearch && agentResearch.length > 0) {
-        console.log("Agent-based research completed successfully");
-        return { research: agentResearch };
-      } else {
-        console.log("Agent-based research returned empty results, falling back to structured output");
-        throw new Error("Empty result from agent research");
-      }
-    } catch (agentError) {
-      console.error("Agent-based research failed, falling back to structured output:", agentError);
+      // Format the structured output as text for compatibility
+      const overviewSection = structuredOutput.overview || "No overview available.";
       
-      const errorMsg = agentError instanceof Error 
-        ? agentError.message 
-        : 'Unknown error with agent research';
+      const featuresSection = structuredOutput.features && structuredOutput.features.length > 0
+        ? "## Key Features\n\n" + structuredOutput.features.map(f => `- ${f}`).join("\n")
+        : "";
+      
+      const developmentsSection = structuredOutput.developments && structuredOutput.developments.length > 0
+        ? "## Recent Developments\n\n" + structuredOutput.developments.map(d => `- **${d.date}**: ${d.description}`).join("\n")
+        : "";
+      
+      const sentimentSection = structuredOutput.sentiment
+        ? `## Community Sentiment\n\n${structuredOutput.sentiment.positive}% Positive${
+            structuredOutput.sentiment.count ? ` (based on approximately ${structuredOutput.sentiment.count} mentions)` : ""
+          }`
+        : "";
+      
+      const competitorsSection = structuredOutput.competitors && structuredOutput.competitors.length > 0
+        ? "## Competitors\n\n" + structuredOutput.competitors.map(c => `- ${c}`).join("\n")
+        : "";
+      
+      const strengthsWeaknessesSection = 
+        (structuredOutput.strengths && structuredOutput.strengths.length > 0) || 
+        (structuredOutput.weaknesses && structuredOutput.weaknesses.length > 0)
+          ? "## Strengths & Weaknesses\n\n" + 
+            (structuredOutput.strengths && structuredOutput.strengths.length > 0 
+              ? "### Strengths\n\n" + structuredOutput.strengths.map(s => `- ${s}`).join("\n") + "\n\n" 
+              : "") +
+            (structuredOutput.weaknesses && structuredOutput.weaknesses.length > 0 
+              ? "### Weaknesses\n\n" + structuredOutput.weaknesses.map(w => `- ${w}`).join("\n") 
+              : "")
+          : "";
+      
+      const outlookSection = structuredOutput.futureOutlook
+        ? `## Future Outlook\n\n${structuredOutput.futureOutlook}`
+        : "";
+      
+      // Add a disclaimer
+      const disclaimer = "## Disclaimer\n\nThis analysis represents a best effort assessment based on available information about the dApp.";
+      
+      // Combine all sections
+      const fullResearch = [
+        "# Overview", 
+        overviewSection, 
+        featuresSection, 
+        developmentsSection, 
+        sentimentSection,
+        competitorsSection,
+        strengthsWeaknessesSection,
+        outlookSection,
+        disclaimer
+      ].filter(Boolean).join("\n\n");
+      
+      console.log("Structured research completed successfully");
+      
+      return { 
+        research: fullResearch,
+        structured: structuredOutput
+      };
+    } catch (structuredError) {
+      console.error("Structured output failed, falling back to text output:", structuredError);
+      
+      // Add more detailed error information
+      const errorMsg = structuredError instanceof Error 
+        ? structuredError.message 
+        : 'Unknown error with structured output';
         
-      console.log(`Agent research error details: ${errorMsg}`);
+      console.log(`Structured output error details: ${errorMsg}`);
       
-      // Try structured output as fallback
+      // If structured output fails, fall back to simple text research
       try {
-        console.log("Attempting structured output with LangChain");
-        const structuredOutput = await performLangChainResearch(dapp, apiSettings);
-        
-        // Format the structured output as text for compatibility
-        const overviewSection = structuredOutput.overview || "No overview available.";
-        
-        const featuresSection = structuredOutput.features && structuredOutput.features.length > 0
-          ? "## Key Features\n\n" + structuredOutput.features.map(f => `- ${f}`).join("\n")
-          : "";
-        
-        const developmentsSection = structuredOutput.developments && structuredOutput.developments.length > 0
-          ? "## Recent Developments\n\n" + structuredOutput.developments.map(d => `- **${d.date}**: ${d.description}`).join("\n")
-          : "";
-        
-        const sentimentSection = structuredOutput.sentiment
-          ? `## Community Sentiment\n\n${structuredOutput.sentiment.positive}% Positive${
-              structuredOutput.sentiment.count ? ` (based on approximately ${structuredOutput.sentiment.count} mentions)` : ""
-            }`
-          : "";
-        
-        const competitorsSection = structuredOutput.competitors && structuredOutput.competitors.length > 0
-          ? "## Competitors\n\n" + structuredOutput.competitors.map(c => `- ${c}`).join("\n")
-          : "";
-        
-        const strengthsWeaknessesSection = 
-          (structuredOutput.strengths && structuredOutput.strengths.length > 0) || 
-          (structuredOutput.weaknesses && structuredOutput.weaknesses.length > 0)
-            ? "## Strengths & Weaknesses\n\n" + 
-              (structuredOutput.strengths && structuredOutput.strengths.length > 0 
-                ? "### Strengths\n\n" + structuredOutput.strengths.map(s => `- ${s}`).join("\n") + "\n\n" 
-                : "") +
-              (structuredOutput.weaknesses && structuredOutput.weaknesses.length > 0 
-                ? "### Weaknesses\n\n" + structuredOutput.weaknesses.map(w => `- ${w}`).join("\n") 
-                : "")
-            : "";
-        
-        const outlookSection = structuredOutput.futureOutlook
-          ? `## Future Outlook\n\n${structuredOutput.futureOutlook}`
-          : "";
-        
-        // Combine all sections
-        const fullResearch = [
-          "# Overview", 
-          overviewSection, 
-          featuresSection, 
-          developmentsSection, 
-          sentimentSection,
-          competitorsSection,
-          strengthsWeaknessesSection,
-          outlookSection
-        ].filter(Boolean).join("\n\n");
-        
-        return { 
-          research: fullResearch,
-          structured: structuredOutput
-        };
-      } catch (structuredError) {
-        console.error("Structured output failed, falling back to text output:", structuredError);
-        
-        // Add more detailed error information
-        const errorMsg = structuredError instanceof Error 
-          ? structuredError.message 
-          : 'Unknown error with structured output';
-          
-        console.log(`Structured output error details: ${errorMsg}`);
-        
-        // If structured output fails, fall back to simple text research
-        const textResearch = await performSimpleLangChainResearch(dapp, apiSettings);
+        console.log("Attempting simple text research with LangChain");
+        const textResearch = await performSimpleTextResearch(dapp, apiSettings);
         return { research: textResearch };
+      } catch (textError) {
+        console.error("Simple text research failed, falling back to direct API call:", textError);
+        const textErrorMsg = textError instanceof Error 
+          ? textError.message 
+          : 'Unknown error with text research';
+          
+        console.log(`Text research error details: ${textErrorMsg}`);
+        
+        // If simple text research fails too, try direct API call
+        return performDirectApiResearch(request, apiSettings);
       }
     }
   } catch (error) {
-    console.error("Client-side LangChain research failed, falling back to direct API call:", error);
+    console.error("Client-side LangChain research failed completely, falling back to direct API call:", error);
     
     // Add more detailed error information
     const errorMsg = error instanceof Error 
       ? error.message 
       : 'Unknown error with LangChain research';
       
-    console.log(`LangChain error details: ${errorMsg}`);
+    console.log(`LangChain general error details: ${errorMsg}`);
     
     // If LangChain fails completely, try direct API call
     return performDirectApiResearch(request, apiSettings);
