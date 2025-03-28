@@ -72,6 +72,102 @@ IMPORTANT:
 }
 
 /**
+ * Fallback method for structured output when direct JSON output fails
+ */
+async function fallbackStructuredOutput(
+  model: ChatOpenAI,
+  outputParser: StructuredOutputParser<any>,
+  dapp: DApp
+): Promise<any> {
+  console.log("Using fallback structured output method");
+  
+  try {
+    // Setup a more direct and controlled prompt approach
+    const systemMessage = createSystemPrompt(dapp);
+    const formatInstructions = outputParser.getFormatInstructions()
+      .replace(/([^{]){([^{])/g, '$1\\{$2') // Escape any problematic braces
+      .replace(/\$/g, '\\$'); // Escape any dollar signs that could cause template string issues
+    
+    // Format messages and call the model directly with cleaned instructions
+    const response = await model.invoke([
+      new SystemMessage(`${systemMessage}\n\n${formatInstructions}`),
+      new HumanMessage(`Please provide a detailed research analysis on ${dapp.name}. Ensure your output follows the required JSON schema.`)
+    ]);
+    
+    // Extract content as string
+    const content = response.content as string;
+    
+    // Try to parse JSON from the response - multiple approaches
+    try {
+      // First, try to find JSON in code blocks
+      let jsonMatch = content.match(/```(?:json)?([\s\S]*?)```/);
+      if (jsonMatch && jsonMatch[1]) {
+        try {
+          const extractedJson = jsonMatch[1].trim();
+          const parsed = JSON.parse(extractedJson);
+          console.log("Structured research completed successfully (code block parser)");
+          return parsed;
+        } catch (e) {
+          console.log("Failed to parse JSON from code block, trying other methods...");
+        }
+      }
+      
+      // Try to find JSON in a more lenient way - looking for surrounding braces
+      jsonMatch = content.match(/{[\s\S]*}/);
+      if (jsonMatch) {
+        try {
+          const extractedJson = jsonMatch[0].trim();
+          const parsed = JSON.parse(extractedJson);
+          console.log("Structured research completed successfully (brace parser)");
+          return parsed;
+        } catch (e) {
+          console.log("Failed to parse JSON with braces, trying other methods...");
+        }
+      }
+      
+      // Try direct parsing as a last resort
+      try {
+        const parsed = JSON.parse(content);
+        console.log("Structured research completed successfully (direct parser)");
+        return parsed;
+      } catch (e) {
+        console.log("Failed direct JSON parsing, falling back to schema parser...");
+      }
+      
+      // Last resort: Try to use the output parser directly
+      try {
+        const parsed = await outputParser.parse(content);
+        console.log("Structured research completed successfully (output parser)");
+        return parsed;
+      } catch (outputParserError) {
+        console.error("Output parser error:", outputParserError);
+        
+        // Return a simplified fallback object with just the overview
+        return {
+          overview: content.slice(0, 500) + "... (truncated)",
+          features: ["Parsing failed - see overview for details"],
+          developments: [{ date: "Current", description: "Unable to parse structured data" }],
+          sentiment: { positive: 50 }
+        };
+      }
+    } catch (parseError) {
+      console.error("General error parsing structured output:", parseError);
+      
+      // Return minimal valid structure
+      return {
+        overview: "Unable to parse structured data. Raw content may contain valuable information.",
+        features: ["Parsing failed, see overview"],
+        developments: [{ date: "Current", description: "Error processing structured output" }],
+        sentiment: { positive: 50 }
+      };
+    }
+  } catch (error) {
+    console.error("Error in fallback structured output:", error);
+    throw error;
+  }
+}
+
+/**
  * Perform research on a dApp using LangChain's structured output features
  */
 export async function performStructuredResearch(
@@ -116,8 +212,11 @@ export async function performStructuredResearch(
     const outputParser = StructuredOutputParser.fromZodSchema(researchOutputSchema);
     
     // Setup the prompt with system instructions and format requirements
+    // Escape any single braces in the format instructions to avoid template string issues
+    const formatInstructions = outputParser.getFormatInstructions().replace(/([^{]){([^{])/g, '$1\\{$2');
+    
     const prompt = ChatPromptTemplate.fromMessages([
-      ["system", `${createSystemPrompt(dapp)}\n\n${outputParser.getFormatInstructions()}`],
+      ["system", `${createSystemPrompt(dapp)}\n\n${formatInstructions}`],
       ["human", `Please provide a detailed research analysis on ${dapp.name}. Ensure your output follows the required JSON schema.`]
     ]);
     
@@ -146,17 +245,15 @@ export async function performStructuredResearch(
       } catch (error) {
         console.error("Error using GPT JSON mode:", error);
         // Fall back to using the parser approach
-        structuredResult = await fallbackStructuredOutput(model, prompt, outputParser, dapp);
+        structuredResult = await fallbackStructuredOutput(model, outputParser, dapp);
       }
     } else {
       // For non-GPT models, use the parser approach
-      structuredResult = await fallbackStructuredOutput(model, prompt, outputParser, dapp);
+      structuredResult = await fallbackStructuredOutput(model, outputParser, dapp);
     }
     
     // Process and return the result
-    const result = structuredResult;
-
-    return ensureValidResearchOutput(result);
+    return ensureValidResearchOutput(structuredResult);
   } catch (error) {
     console.error("Error in structured research:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -173,66 +270,6 @@ export async function performStructuredResearch(
       weaknesses: [],
       futureOutlook: ""
     };
-  }
-}
-
-/**
- * Fallback method for structured output when direct JSON output fails
- */
-async function fallbackStructuredOutput(
-  model: ChatOpenAI,
-  prompt: ChatPromptTemplate,
-  outputParser: StructuredOutputParser<any>,
-  dapp: DApp
-): Promise<any> {
-  console.log("Using fallback structured output method");
-  
-  try {
-    // Format messages and call the model
-    const chain = prompt.pipe(model);
-    const response = await chain.invoke({});
-    
-    // Extract content as string
-    const content = response.content as string;
-    
-    // Try to parse JSON from the response
-    try {
-      // First, check if there's JSON in code blocks
-      const jsonMatch = content.match(/```(?:json)?([\s\S]*?)```|({[\s\S]*})/);
-      if (jsonMatch) {
-        const extractedJson = (jsonMatch[1] || jsonMatch[2]).trim();
-        const parsed = JSON.parse(extractedJson);
-        console.log("Structured research completed successfully (code block parser)");
-        return parsed;
-      }
-      
-      // Try direct parsing
-      const parsed = JSON.parse(content);
-      console.log("Structured research completed successfully (direct parser)");
-      return parsed;
-    } catch (parseError) {
-      console.error("Error parsing structured output:", parseError);
-      
-      // Last resort: Try to use the output parser directly
-      try {
-        const parsed = await outputParser.parse(content);
-        console.log("Structured research completed successfully (output parser)");
-        return parsed;
-      } catch (outputParserError) {
-        console.error("Output parser error:", outputParserError);
-        
-        // Return a simplified fallback object with just the overview
-        return {
-          overview: content.slice(0, 500) + "... (truncated)",
-          features: ["Parsing failed - see overview for details"],
-          developments: [{ date: "Current", description: "Unable to parse structured data" }],
-          sentiment: { positive: 50 }
-        };
-      }
-    }
-  } catch (error) {
-    console.error("Error in fallback structured output:", error);
-    throw error;
   }
 }
 

@@ -2,8 +2,8 @@ import axios from "axios";
 import { ApiSettings } from "@/components/api-settings-modal";
 import { apiRequest } from "@/lib/queryClient";
 import { DApp } from "@/types/dapp";
-import { DeepResearchOutput, ensureValidResearchOutput } from "./langchain-research";
-import { performStructuredResearch, performSimpleTextResearch } from "./langchain-structured";
+import { DeepResearchOutput } from "./langchain-research";
+import { performStructuredResearch, performSimpleTextResearch, ensureValidResearchOutput } from "./langchain-structured";
 
 export interface ResearchRequest {
   dappName: string;
@@ -251,23 +251,24 @@ async function performDirectApiResearch(
     }
     
     return { research: researchContent };
-  } catch (error) {
+  } catch (err) {
+    const error = err as any; // Type assertion to handle axios error types
     console.error("Error in direct API call:", error);
     
     // Get detailed error information
     let errorMessage = "API call failed with unknown error";
     
-    if (error.response) {
+    if (error && error.response) {
       // The request was made and the server responded with a status code that falls out of the range of 2xx
       console.log("API error response:", error.response.data);
       console.log("API error status:", error.response.status);
       
       errorMessage = `API call failed with status ${error.response.status}: ${JSON.stringify(error.response.data)}`;
-    } else if (error.request) {
+    } else if (error && error.request) {
       // The request was made but no response was received
       console.log("API error request:", error.request);
       errorMessage = "API call received no response. Check your network connection and API endpoint.";
-    } else {
+    } else if (error && error.message) {
       // Something happened in setting up the request that triggered an Error
       console.log("API error message:", error.message);
       errorMessage = `API call setup error: ${error.message}`;
