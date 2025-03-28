@@ -6,7 +6,8 @@ export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
-  walletAddress: text("wallet_address"),
+  walletAddress: text("wallet_address").unique(),
+  apiSettings: jsonb("api_settings"),
 });
 
 export const favorites = pgTable("favorites", {
@@ -27,10 +28,18 @@ export const experiences = pgTable("experiences", {
   createdAt: text("created_at").notNull(),
 });
 
+// API settings type definition
+export interface ApiSettings {
+  baseUrl: string;
+  apiKey: string;
+  modelName: string;
+}
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
   walletAddress: true,
+  apiSettings: true,
 });
 
 export const insertFavoriteSchema = createInsertSchema(favorites).pick({

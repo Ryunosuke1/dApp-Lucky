@@ -4,15 +4,20 @@ import {
   experiences, type Experience, type InsertExperience
 } from "@shared/schema";
 
+import { ApiSettings } from "@shared/schema";
+
 export interface IStorage {
   // User methods
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByWalletAddress(walletAddress: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  getOrCreateUserByWallet(walletAddress: string): Promise<User>;
+  updateUserApiSettings(userId: number, apiSettings: ApiSettings): Promise<User>;
   
   // Favorite methods
   getFavorites(userId: number): Promise<Favorite[]>;
+  getFavoritesByWalletAddress(walletAddress: string): Promise<Favorite[]>;
   getFavorite(id: number): Promise<Favorite | undefined>;
   getFavoriteByDappId(userId: number, dappId: string): Promise<Favorite | undefined>;
   createFavorite(favorite: InsertFavorite): Promise<Favorite>;
@@ -63,6 +68,45 @@ export class MemStorage implements IStorage {
     const user: User = { ...insertUser, id };
     this.users.set(id, user);
     return user;
+  }
+
+  async getOrCreateUserByWallet(walletAddress: string): Promise<User> {
+    // Check if user with this wallet address already exists
+    const existingUser = await this.getUserByWalletAddress(walletAddress);
+    if (existingUser) {
+      return existingUser;
+    }
+
+    // Create a new user with the wallet address
+    const randomUsername = `user_${Math.random().toString(36).substring(2, 10)}`;
+    const newUser: InsertUser = {
+      username: randomUsername,
+      password: Math.random().toString(36), // Random password since login is via wallet
+      walletAddress
+    };
+
+    return this.createUser(newUser);
+  }
+
+  async updateUserApiSettings(userId: number, apiSettings: ApiSettings): Promise<User> {
+    const user = await this.getUser(userId);
+    if (!user) {
+      throw new Error(`User with ID ${userId} not found`);
+    }
+
+    user.apiSettings = apiSettings;
+    this.users.set(userId, user);
+    
+    return user;
+  }
+
+  async getFavoritesByWalletAddress(walletAddress: string): Promise<Favorite[]> {
+    const user = await this.getUserByWalletAddress(walletAddress);
+    if (!user) {
+      return [];
+    }
+    
+    return this.getFavorites(user.id);
   }
 
   // Favorite methods

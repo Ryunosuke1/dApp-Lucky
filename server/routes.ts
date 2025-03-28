@@ -11,6 +11,63 @@ import { hasApiKey, ApiProvider, getApiKey } from "./api-keys";
 export async function registerRoutes(app: Express): Promise<Server> {
   // prefix all routes with /api
   
+  // User management with wallet
+  app.post("/api/wallet/connect", async (req: Request, res: Response) => {
+    try {
+      const { walletAddress } = req.body;
+      
+      if (!walletAddress) {
+        return res.status(400).json({ message: "walletAddress is required" });
+      }
+      
+      const user = await storage.getOrCreateUserByWallet(walletAddress);
+      res.json(user);
+    } catch (error) {
+      console.error("Error connecting wallet:", error);
+      res.status(500).json({ message: "Failed to connect wallet" });
+    }
+  });
+  
+  // Get or update user API settings
+  app.get("/api/users/:walletAddress/api-settings", async (req: Request, res: Response) => {
+    try {
+      const { walletAddress } = req.params;
+      const user = await storage.getUserByWalletAddress(walletAddress);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      res.json({ apiSettings: user.apiSettings || null });
+    } catch (error) {
+      console.error("Error fetching API settings:", error);
+      res.status(500).json({ message: "Failed to fetch API settings" });
+    }
+  });
+  
+  app.post("/api/users/:walletAddress/api-settings", async (req: Request, res: Response) => {
+    try {
+      const { walletAddress } = req.params;
+      const { apiSettings } = req.body;
+      
+      if (!apiSettings) {
+        return res.status(400).json({ message: "apiSettings is required" });
+      }
+      
+      const user = await storage.getUserByWalletAddress(walletAddress);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      const updatedUser = await storage.updateUserApiSettings(user.id, apiSettings);
+      res.json({ apiSettings: updatedUser.apiSettings });
+    } catch (error) {
+      console.error("Error updating API settings:", error);
+      res.status(500).json({ message: "Failed to update API settings" });
+    }
+  });
+  
   // Get API status to see which APIs have keys configured
   app.get("/api/status", async (_req: Request, res: Response) => {
     try {
