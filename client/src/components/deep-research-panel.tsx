@@ -23,101 +23,187 @@ export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPa
     features?: string[];
     developments?: { date: string; description: string }[];
     sentiment?: { positive: number; count: number };
+    useClientApi?: boolean;
   } | null>(null);
   
   const researchMutation = useMutation({
     mutationFn: async () => {
-      // Check if API settings are configured
-      if (!apiSettings.apiKey || !apiSettings.baseUrl) {
-        throw new Error("API settings are not configured");
-      }
-      
+      // Pass apiSettings (can be undefined) to let the service decide whether to use client or server API
       return await performResearch({
         dappName: dapp.name,
-        dappDescription: dapp.description
-      }, apiSettings);
+        dappDescription: dapp.description,
+        category: dapp.category,
+        chains: dapp.chains
+      }, apiSettings?.apiKey && apiSettings.baseUrl ? apiSettings : undefined);
     },
     onSuccess: (data) => {
       try {
-        // Try to parse the research content
-        // This is a simplified parser - in production you'd want more robust parsing
-        const sections = data.research.split('\n\n');
+        console.log("Research data received:", data);
+        // Try to parse the research content with improved parser
+        const researchText = data.research.trim();
         
-        const researchData: any = {};
+        // Split by sections using patterns like "# Section" or "## Section" or "Section:" or numbered lists "1. Section"
+        const sectionPattern = /(?:^|\n)(?:#{1,3} |(\d+)\. |([A-Za-z ]+):)/g;
         
-        // Overview is typically the first section
-        researchData.overview = sections[0];
+        // Alternative to matchAll for better TypeScript compatibility
+        const sectionMatches: { index: number, text: string }[] = [];
+        let match;
+        while ((match = sectionPattern.exec(researchText)) !== null) {
+          sectionMatches.push({ 
+            index: match.index,
+            text: match[0]
+          });
+        }
         
-        // Look for features
-        const featuresSection = sections.find(s => s.toLowerCase().includes('features') || s.toLowerCase().includes('capabilities'));
+        // If we couldn't find sections with headings, try paragraphs
+        const sections = sectionMatches.length > 1 
+          ? sectionMatches.map((match, index) => {
+              const startIdx = match.index;
+              const endIdx = index < sectionMatches.length - 1 ? sectionMatches[index + 1].index : researchText.length;
+              return researchText.substring(startIdx, endIdx).trim();
+            })
+          : researchText.split(/\n{2,}/); // Fall back to paragraph splitting
+        
+        const researchData: any = {
+          useClientApi: !!apiSettings?.apiKey
+        };
+        
+        // Find Overview section
+        const overviewSection = sections.find(s => 
+          s.toLowerCase().startsWith('overview') || 
+          s.toLowerCase().startsWith('# overview') || 
+          s.toLowerCase().startsWith('## overview') ||
+          s.toLowerCase().startsWith('1. overview')
+        );
+        
+        if (overviewSection) {
+          // Extract text after the heading
+          const cleanOverview = overviewSection.replace(/^(?:#{1,3} |(\d+)\. |)overview:?/i, '').trim();
+          researchData.overview = cleanOverview;
+        } else {
+          // If no overview section found, use the first paragraph
+          researchData.overview = sections[0];
+        }
+        
+        // Find Key Features section
+        const featuresSection = sections.find(s => 
+          s.toLowerCase().includes('features') || 
+          s.toLowerCase().includes('capabilities') ||
+          s.toLowerCase().includes('key aspects')
+        );
+        
         if (featuresSection) {
+          // Look for bullet points or numbered items
           const features = featuresSection.split('\n')
-            .filter((line: string) => line.trim().startsWith('- ') || line.trim().startsWith('• '))
-            .map((line: string) => line.trim().replace(/^[-•]\s+/, ''));
+            .filter(line => /^\s*[-•*]|\d+\./.test(line.trim()))
+            .map(line => line.trim().replace(/^\s*[-•*]\s*|\d+\.\s*/, ''));
           
           if (features.length > 0) {
             researchData.features = features;
+          } else {
+            // If no bullet points, just grab everything after the heading
+            const cleanFeatures = featuresSection
+              .replace(/^(?:#{1,3} |(\d+)\. |)(?:key |)features:?/i, '')
+              .trim()
+              .split(/\n+/);
+            if (cleanFeatures.length > 0) {
+              researchData.features = cleanFeatures;
+            }
           }
         }
         
-        // Look for recent developments
+        // Find Recent Developments section
         const developmentsSection = sections.find(s => 
           s.toLowerCase().includes('developments') || 
           s.toLowerCase().includes('updates') || 
-          s.toLowerCase().includes('news')
+          s.toLowerCase().includes('news') ||
+          s.toLowerCase().includes('timeline')
         );
         
         if (developmentsSection) {
-          const developmentItems = developmentsSection.split('\n')
-            .filter((line: string) => /^\d{4}|^\w+ \d{4}|^\w+,? \d{4}/.test(line.trim()))
-            .map((line: string) => {
-              const parts = line.split(':');
-              if (parts.length >= 2) {
-                return {
-                  date: parts[0].trim(),
-                  description: parts.slice(1).join(':').trim()
-                };
-              }
-              return null;
-            })
-            .filter(Boolean);
+          // Try to match patterns like "Month Year: Description" or "Month Year - Description"
+          const devRegex = /(?:^|\n)(?:[-•*]|\d+\.|\s*)?((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december|early|mid|late|q[1-4]|[12][0-9]{3})[a-z.,\s]*(?:20[0-9]{2})?)\s*[:-]\s*([^\n]+)/gi;
           
-          if (developmentItems.length > 0) {
-            researchData.developments = developmentItems;
+          // Alternative to matchAll for better TypeScript compatibility
+          const devMatches: Array<RegExpExecArray> = [];
+          let devMatch;
+          while ((devMatch = devRegex.exec(developmentsSection)) !== null) {
+            devMatches.push(devMatch);
+          }
+          
+          if (devMatches.length > 0) {
+            researchData.developments = devMatches.map(match => ({
+              date: match[1].trim(),
+              description: match[2].trim()
+            }));
           }
         }
         
-        // Extract sentiment
-        const sentimentMatch = data.research.match(/(\d+)%\s+[Pp]ositive/);
+        // Extract sentiment data
+        const sentimentRegex = /(\d+)%\s*(?:positive|favorable|approving)/i;
+        const sentimentMatch = researchText.match(sentimentRegex);
+        
         if (sentimentMatch) {
           researchData.sentiment = {
             positive: parseInt(sentimentMatch[1]),
             count: 0 // Default
           };
           
-          // Try to find the count
-          const countMatch = data.research.match(/based on (\d+)/i);
+          // Try to find the count of mentions
+          const countRegex = /(?:based on|from|across|analyzing)\s+(?:approximately\s+)?(\d+|a few|several|many|hundreds of|thousands of)/i;
+          const countMatch = researchText.match(countRegex);
+          
           if (countMatch) {
-            researchData.sentiment.count = parseInt(countMatch[1]);
+            const countText = countMatch[1].toLowerCase();
+            // Convert text counts to numbers
+            let count = 0;
+            if (/^\d+$/.test(countText)) {
+              count = parseInt(countText);
+            } else if (countText.includes('few')) {
+              count = 5;
+            } else if (countText.includes('several')) {
+              count = 10;
+            } else if (countText.includes('many')) {
+              count = 50;
+            } else if (countText.includes('hundreds')) {
+              count = 200;
+            } else if (countText.includes('thousands')) {
+              count = 1000;
+            }
+            
+            if (count > 0) {
+              researchData.sentiment.count = count;
+            }
           }
         }
         
+        console.log("Parsed research data:", researchData);
         setResearch(researchData);
       } catch (error) {
         console.error("Error parsing research response:", error);
+        // Fallback to displaying the raw response
         setResearch({
-          overview: data.research
+          overview: data.research,
+          useClientApi: !!apiSettings?.apiKey
         });
       }
     },
-    onError: () => {
+    onError: (error) => {
+      console.error("Research error:", error);
       toast({
         title: "Research Failed",
-        description: "Unable to perform deep research. Please try again later.",
+        description: apiSettings?.apiKey
+          ? "Unable to perform deep research with your API key. Please check your API settings and try again."
+          : "Unable to perform deep research. Server might not have API keys configured. Try providing your own API key.",
         variant: "destructive",
       });
     }
   });
+  
+  // Function to retry research
+  const retryResearch = () => {
+    researchMutation.mutate();
+  };
   
   useEffect(() => {
     researchMutation.mutate();
@@ -126,15 +212,42 @@ export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPa
   return (
     <div className="p-6 border-t border-gray-200">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-medium text-gray-900 heading">Deep Research</h3>
-        <Button variant="ghost" size="icon" onClick={onClose}>
-          <X className="h-5 w-5" />
-        </Button>
+        <div className="flex items-center">
+          <h3 className="text-lg font-medium text-gray-900 heading">Deep Research</h3>
+          {research?.useClientApi !== undefined && (
+            <span className={`ml-2 text-xs px-2 py-1 rounded-full ${research.useClientApi ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
+              {research.useClientApi ? 'Client API' : 'Server API'}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {!researchMutation.isPending && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={retryResearch}
+              disabled={researchMutation.isPending}
+            >
+              Retry
+            </Button>
+          )}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={onClose}
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
       </div>
       
       <Card className="bg-gray-50 rounded-xl p-4">
         {researchMutation.isPending ? (
           <div className="space-y-4">
+            <div className="flex justify-center mb-2">
+              <Progress className="w-full h-2" value={30} />
+            </div>
+            <p className="text-center text-sm text-gray-500 mb-4">Researching {dapp.name}...</p>
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-3/4" />
@@ -155,13 +268,26 @@ export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPa
               </div>
             </div>
           </div>
+        ) : researchMutation.isError ? (
+          <div className="py-8 flex flex-col items-center justify-center text-center">
+            <div className="text-red-500 mb-4 rounded-full bg-red-50 p-2">
+              <X className="h-8 w-8" />
+            </div>
+            <p className="text-gray-700 font-medium mb-2">Research Failed</p>
+            <p className="text-gray-500 mb-4">
+              {apiSettings?.apiKey 
+                ? "Unable to perform research with your API key. Check your settings." 
+                : "Server API key may be missing. Try providing your own API key."}
+            </p>
+            <Button onClick={retryResearch}>Try Again</Button>
+          </div>
         ) : (
           <>
             {research ? (
               <div>
                 <div className="mb-4 pb-4 border-b border-gray-200">
                   <h4 className="font-semibold text-gray-900 mb-2">Overview</h4>
-                  <p className="text-gray-600">
+                  <p className="text-gray-600 whitespace-pre-line">
                     {research.overview || "No overview available."}
                   </p>
                 </div>
@@ -182,9 +308,11 @@ export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPa
                     <h4 className="font-semibold text-gray-900 mb-2">Recent Developments</h4>
                     <div className="space-y-3">
                       {research.developments.map((dev, index) => (
-                        <div key={index}>
-                          <span className="text-xs text-gray-500">{dev.date}</span>
-                          <p className="text-gray-600">{dev.description}</p>
+                        <div key={index} className="mb-2">
+                          <span className="text-xs font-medium bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                            {dev.date}
+                          </span>
+                          <p className="text-gray-600 mt-1">{dev.description}</p>
                         </div>
                       ))}
                     </div>
@@ -192,11 +320,17 @@ export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPa
                 )}
                 
                 {research.sentiment && (
-                  <div>
+                  <div className="mb-2">
                     <h4 className="font-semibold text-gray-900 mb-2">Community Sentiment</h4>
                     <div className="flex items-center">
                       <div className="w-full bg-gray-200 rounded-full h-2.5 mr-2">
-                        <Progress value={research.sentiment.positive} className="h-2.5" />
+                        <Progress 
+                          value={research.sentiment.positive} 
+                          className={`h-2.5 ${
+                            research.sentiment.positive > 70 ? 'bg-green-500' : 
+                            research.sentiment.positive > 40 ? 'bg-amber-500' : 'bg-red-500'
+                          }`} 
+                        />
                       </div>
                       <span className="ml-2 text-sm font-medium text-gray-700">
                         {research.sentiment.positive}% Positive
@@ -209,10 +343,17 @@ export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPa
                     )}
                   </div>
                 )}
+                
+                <div className="mt-5 pt-4 border-t border-gray-200 text-center">
+                  <p className="text-xs text-gray-500">
+                    Research performed using {research.useClientApi ? 'client-side API' : 'server-side API'}.
+                  </p>
+                </div>
               </div>
             ) : (
               <div className="py-8 text-center">
-                <p className="text-gray-500">No research data available</p>
+                <p className="text-gray-500 mb-4">No research data available</p>
+                <Button onClick={retryResearch}>Try Research Again</Button>
               </div>
             )}
           </>
