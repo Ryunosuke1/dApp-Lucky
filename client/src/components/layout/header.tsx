@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
+import { metaMask } from "wagmi/connectors";
 import { Wallet, ChevronDown } from "lucide-react";
 import {
   DropdownMenu,
@@ -8,57 +9,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { getMetaMaskProvider, createMetaMaskClient } from "@/lib/web3-service";
 import { useToast } from "@/hooks/use-toast";
 
 export function Header() {
-  const { address, isConnected, connector } = useAccount();
+  const { address, isConnected } = useAccount();
   const { connect } = useConnect();
   const { disconnect } = useDisconnect();
   const [isConnecting, setIsConnecting] = useState(false);
   const { toast } = useToast();
-  const [metaMaskConnector, setMetaMaskConnector] = useState<any>(null);
-  
-  // Initialize MetaMask connector on component mount
-  useEffect(() => {
-    const initializeMetaMask = async () => {
-      try {
-        // Get the provider using our SDK wrapper
-        const provider = getMetaMaskProvider();
-        
-        if (provider) {
-          // Create a connector with the SDK provider
-          const mmConnector = {
-            id: 'metamask-sdk',
-            name: 'MetaMask',
-            type: 'injected',
-            connect: async () => {
-              try {
-                const accounts = await provider.request({ method: 'eth_requestAccounts' });
-                
-                if (accounts && accounts.length > 0) {
-                  return { 
-                    account: accounts[0] as `0x${string}`,
-                    chain: { id: await provider.request({ method: 'eth_chainId' }) }
-                  };
-                }
-                throw new Error('No accounts returned from MetaMask SDK');
-              } catch (err) {
-                console.error('MetaMask connection error:', err);
-                throw err;
-              }
-            }
-          };
-          
-          setMetaMaskConnector(mmConnector);
-        }
-      } catch (error) {
-        console.error('Failed to initialize MetaMask connector:', error);
-      }
-    };
-    
-    initializeMetaMask();
-  }, []);
   
   const handleWalletConnect = async () => {
     if (isConnected) return;
@@ -66,24 +24,18 @@ export function Header() {
     setIsConnecting(true);
     
     try {
-      if (metaMaskConnector) {
-        await connect({ connector: metaMaskConnector });
-        toast({
-          title: "Wallet Connected",
-          description: "MetaMask wallet successfully connected!",
-        });
-      } else {
-        toast({
-          title: "Connection Error",
-          description: "MetaMask SDK not available. Please install MetaMask extension.",
-          variant: "destructive",
-        });
-      }
+      // Use metaMask connector from wagmi
+      await connect({ connector: metaMask() });
+      
+      toast({
+        title: "Wallet Connected",
+        description: "MetaMask wallet successfully connected!",
+      });
     } catch (error) {
       console.error("Connection error:", error);
       toast({
         title: "Connection Failed",
-        description: "Failed to connect to MetaMask. Please try again.",
+        description: "Failed to connect to MetaMask. Please install MetaMask extension or allow connection.",
         variant: "destructive",
       });
     } finally {

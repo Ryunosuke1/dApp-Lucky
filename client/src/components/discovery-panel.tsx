@@ -4,7 +4,11 @@ import { DeepResearchPanel } from "./deep-research-panel";
 import { CommunityExperiences } from "./community-experiences";
 import { useQuery } from "@tanstack/react-query";
 import { DApp } from "@/types/dapp";
-import { fetchRandomDApp } from "@/lib/dapp-service";
+import { fetchRandomDApp, dappCategories } from "@/lib/dapp-service";
+import { ApiSettingsModal } from "./api-settings-modal";
+import { useApiSettings } from "@/hooks/use-api-settings";
+import { Settings } from "lucide-react";
+import { Button } from "./ui/button";
 
 interface DiscoveryPanelProps {
   onShareExperience: () => void;
@@ -12,11 +16,13 @@ interface DiscoveryPanelProps {
 }
 
 export function DiscoveryPanel({ onShareExperience, onSetSelectedDApp }: DiscoveryPanelProps) {
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>("All");
   const [showDeepResearch, setShowDeepResearch] = useState(false);
+  const [showApiSettings, setShowApiSettings] = useState(false);
+  const { settings, saveSettings, isConfigured } = useApiSettings();
   
   const { data: dapp, refetch, isLoading } = useQuery({
-    queryKey: ['/api/dapps/random', selectedCategory],
+    queryKey: ['dapp-random', selectedCategory],
     queryFn: () => fetchRandomDApp(selectedCategory),
   });
   
@@ -30,6 +36,10 @@ export function DiscoveryPanel({ onShareExperience, onSetSelectedDApp }: Discove
   };
   
   const handleDeepResearchToggle = () => {
+    if (!isConfigured) {
+      setShowApiSettings(true);
+      return;
+    }
     setShowDeepResearch(!showDeepResearch);
   };
   
@@ -39,19 +49,28 @@ export function DiscoveryPanel({ onShareExperience, onSetSelectedDApp }: Discove
     }
   }, [dapp, onSetSelectedDApp]);
   
-  const categories = [
-    { id: "defi", name: "DeFi" },
-    { id: "nfts", name: "NFTs" },
-    { id: "games", name: "Gaming" },
-    { id: "social", name: "Social" },
-    { id: "governance", name: "Governance" }
-  ];
+  // Convert categories array to format needed for the UI
+  const categories = dappCategories.map(category => ({
+    id: category,
+    name: category
+  }));
 
   return (
     <div className="bg-white rounded-2xl shadow overflow-hidden">
       {/* Discovery Header */}
       <div className="bg-primary-500 text-white p-6 flex flex-col">
-        <h2 className="text-xl font-semibold heading">Discover dApps</h2>
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl font-semibold heading">Discover dApps</h2>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="text-white hover:bg-primary-400 -mr-2"
+            onClick={() => setShowApiSettings(true)}
+            title="AI API Settings"
+          >
+            <Settings className="h-5 w-5" />
+          </Button>
+        </div>
         <p className="mt-1 text-primary-100">Find and explore new decentralized applications</p>
         
         {/* Category Pills */}
@@ -85,6 +104,7 @@ export function DiscoveryPanel({ onShareExperience, onSetSelectedDApp }: Discove
         <DeepResearchPanel 
           dapp={dapp} 
           onClose={() => setShowDeepResearch(false)} 
+          apiSettings={settings}
         />
       )}
       
@@ -92,6 +112,14 @@ export function DiscoveryPanel({ onShareExperience, onSetSelectedDApp }: Discove
       <CommunityExperiences 
         dappId={dapp?.id} 
         onShareExperience={onShareExperience} 
+      />
+      
+      {/* API Settings Modal */}
+      <ApiSettingsModal
+        isOpen={showApiSettings}
+        onClose={() => setShowApiSettings(false)}
+        initialSettings={settings}
+        onSave={saveSettings}
       />
     </div>
   );

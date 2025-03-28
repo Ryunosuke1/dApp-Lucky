@@ -4,17 +4,19 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import { X } from "lucide-react";
+import { X, Settings } from "lucide-react";
 import { DApp } from "@/types/dapp";
-import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { performResearch } from "@/lib/openrouter-service";
+import { ApiSettings } from "./api-settings-modal";
 
 interface DeepResearchPanelProps {
   dapp: DApp;
   onClose: () => void;
+  apiSettings: ApiSettings;
 }
 
-export function DeepResearchPanel({ dapp, onClose }: DeepResearchPanelProps) {
+export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPanelProps) {
   const { toast } = useToast();
   const [research, setResearch] = useState<{
     overview?: string;
@@ -25,11 +27,15 @@ export function DeepResearchPanel({ dapp, onClose }: DeepResearchPanelProps) {
   
   const researchMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/research", {
+      // Check if API settings are configured
+      if (!apiSettings.apiKey || !apiSettings.baseUrl) {
+        throw new Error("API settings are not configured");
+      }
+      
+      return await performResearch({
         dappName: dapp.name,
-        dappDescription: dapp.description,
-      });
-      return response.json();
+        dappDescription: dapp.description
+      }, apiSettings);
     },
     onSuccess: (data) => {
       try {
