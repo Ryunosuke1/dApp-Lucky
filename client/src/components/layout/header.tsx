@@ -1,8 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Link } from "wouter";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
-import { metaMaskWallet } from "@rainbow-me/rainbowkit/wallets";
 import { Wallet, ChevronDown } from "lucide-react";
 import {
   DropdownMenu,
@@ -10,12 +8,57 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { getMetaMaskProvider, createMetaMaskClient } from "@/lib/web3-service";
+import { useToast } from "@/hooks/use-toast";
 
 export function Header() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, connector } = useAccount();
   const { connect } = useConnect();
   const { disconnect } = useDisconnect();
   const [isConnecting, setIsConnecting] = useState(false);
+  const { toast } = useToast();
+  const [metaMaskConnector, setMetaMaskConnector] = useState<any>(null);
+  
+  // Initialize MetaMask connector on component mount
+  useEffect(() => {
+    const initializeMetaMask = async () => {
+      try {
+        // Get the provider using our SDK wrapper
+        const provider = getMetaMaskProvider();
+        
+        if (provider) {
+          // Create a connector with the SDK provider
+          const mmConnector = {
+            id: 'metamask-sdk',
+            name: 'MetaMask',
+            type: 'injected',
+            connect: async () => {
+              try {
+                const accounts = await provider.request({ method: 'eth_requestAccounts' });
+                
+                if (accounts && accounts.length > 0) {
+                  return { 
+                    account: accounts[0] as `0x${string}`,
+                    chain: { id: await provider.request({ method: 'eth_chainId' }) }
+                  };
+                }
+                throw new Error('No accounts returned from MetaMask SDK');
+              } catch (err) {
+                console.error('MetaMask connection error:', err);
+                throw err;
+              }
+            }
+          };
+          
+          setMetaMaskConnector(mmConnector);
+        }
+      } catch (error) {
+        console.error('Failed to initialize MetaMask connector:', error);
+      }
+    };
+    
+    initializeMetaMask();
+  }, []);
   
   const handleWalletConnect = async () => {
     if (isConnected) return;
@@ -23,10 +66,26 @@ export function Header() {
     setIsConnecting(true);
     
     try {
-      const connector = metaMaskWallet().getConnector();
-      connect({ connector });
+      if (metaMaskConnector) {
+        await connect({ connector: metaMaskConnector });
+        toast({
+          title: "Wallet Connected",
+          description: "MetaMask wallet successfully connected!",
+        });
+      } else {
+        toast({
+          title: "Connection Error",
+          description: "MetaMask SDK not available. Please install MetaMask extension.",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       console.error("Connection error:", error);
+      toast({
+        title: "Connection Failed",
+        description: "Failed to connect to MetaMask. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsConnecting(false);
     }
@@ -37,16 +96,14 @@ export function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center py-4">
           <div className="flex items-center">
-            <Link href="/">
-              <a className="flex items-center">
-                <div className="w-10 h-10 bg-primary-500 rounded-lg flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
-                <h1 className="ml-3 text-2xl font-bold text-gray-900 heading">dApp Explorer</h1>
-              </a>
-            </Link>
+            <div className="flex items-center">
+            <div className="w-10 h-10 bg-primary-500 rounded-lg flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <h1 className="ml-3 text-2xl font-bold text-gray-900 heading">dApp Lucky</h1>
+          </div>
           </div>
           
           <div className="flex items-center">

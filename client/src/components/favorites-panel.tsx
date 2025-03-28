@@ -7,7 +7,8 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Favorite } from "@shared/schema";
 import { DApp } from "@/types/dapp";
 import { useToast } from "@/hooks/use-toast";
-import { List, QrCode, GripVertical, X, Twitter, Facebook, Discord } from "lucide-react";
+import { List, QrCode, GripVertical, X, Twitter, Facebook } from "lucide-react";
+import { FaDiscord } from "react-icons/fa";
 import { TrendingDApps } from "./trending-dapps";
 import { 
   DndContext, 
@@ -42,7 +43,7 @@ export function FavoritesPanel({ onGenerateTextList, onGenerateQRCode }: Favorit
   
   useEffect(() => {
     if (data) {
-      setFavorites(data);
+      setFavorites(data as Favorite[]);
     }
   }, [data]);
   
@@ -206,7 +207,7 @@ export function FavoritesPanel({ onGenerateTextList, onGenerateQRCode }: Favorit
                 className="flex-1 bg-[#5865F2] hover:bg-[#4a56cf]"
                 disabled={favorites.length === 0}
               >
-                <Discord className="mr-2 h-4 w-4" />
+                <FaDiscord className="mr-2 h-4 w-4" />
                 Discord
               </Button>
             </div>

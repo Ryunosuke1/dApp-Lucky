@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -49,7 +49,7 @@ export function ShareExperienceModal({ isOpen, onClose, dapp }: ShareExperienceM
   });
   
   // Update form values when dapp changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (dapp) {
       form.setValue("dappId", dapp.id);
       form.setValue("dappName", dapp.name);
