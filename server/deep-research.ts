@@ -4,6 +4,7 @@ export interface ApiSettings {
   baseUrl: string;
   apiKey: string;
   modelName: string;
+  customModelValue?: string; // Optional field for storing custom model value
 }
 
 export interface ResearchInput {
@@ -59,7 +60,9 @@ async function performOpenAIResearch(input: ResearchInput, apiSettings: ApiSetti
       'Authorization': `Bearer ${apiSettings.apiKey}`
     },
     body: JSON.stringify({
-      model: apiSettings.modelName,
+      model: apiSettings.modelName === "custom" && apiSettings.customModelValue 
+        ? apiSettings.customModelValue 
+        : apiSettings.modelName,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Analyze the Web3 dApp ${input.dappName} as requested.` }

@@ -11,6 +11,7 @@ const defaultSettings: ApiSettings = {
   baseUrl: "https://api.openai.com/v1", // OpenAI default
   apiKey: "",
   modelName: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+  customModelValue: "", // Custom model value placeholder
 };
 
 // Models available

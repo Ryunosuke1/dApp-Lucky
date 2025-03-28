@@ -46,8 +46,16 @@ async function performDirectResearch(
   
   const systemPrompt = createSystemPrompt(request);
   
+  // Determine which model name to use - if "custom" is selected, use the customModelValue field
+  let modelName = apiSettings.modelName;
+  if (apiSettings.modelName === "custom" && apiSettings.customModelValue) {
+    modelName = apiSettings.customModelValue;
+  }
+  
+  console.log(`Using model: ${modelName}`);
+  
   const response = await axios.post(endpoint, {
-    model: apiSettings.modelName,
+    model: modelName,
     messages: [
       {
         role: "system",

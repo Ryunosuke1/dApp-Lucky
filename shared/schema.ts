@@ -33,6 +33,7 @@ export interface ApiSettings {
   baseUrl: string;
   apiKey: string;
   modelName: string;
+  customModelValue?: string; // Optional field for storing custom model value
 }
 
 export const insertUserSchema = createInsertSchema(users).pick({

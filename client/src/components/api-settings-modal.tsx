@@ -27,6 +27,7 @@ export interface ApiSettings {
   baseUrl: string;
   apiKey: string;
   modelName: string;
+  customModelValue?: string; // Optional field for storing custom model value
 }
 
 interface ApiSettingsModalProps {
@@ -159,38 +160,91 @@ export function ApiSettingsModal({
               Model
             </Label>
             <div className="col-span-3">
-              <Select 
-                value={settings.modelName} 
-                onValueChange={(value) => setSettings({ ...settings, modelName: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a model" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableModels.map((model) => (
-                    <SelectItem key={model.value} value={model.value}>
-                      {model.label}
+              <div className="flex gap-2">
+                <Select 
+                  value={settings.modelName === "custom" ? "custom" : settings.modelName} 
+                  onValueChange={(value) => {
+                    if (value === "custom") {
+                      // Keep existing model name when switching to custom
+                      setSettings({ 
+                        ...settings, 
+                        modelName: "custom" 
+                      });
+                    } else {
+                      setSettings({ ...settings, modelName: value });
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="custom">
+                      <span className="flex items-center gap-2">
+                        <Info className="h-4 w-4" />
+                        カスタムモデル...
+                      </span>
                     </SelectItem>
-                  ))}
-                  <SelectItem value="custom">Custom Model Name...</SelectItem>
-                </SelectContent>
-              </Select>
+                    
+                    {/* OpenAI Models */}
+                    <SelectItem value="header-openai" disabled className="font-semibold text-gray-500 py-1 my-1 bg-gray-50">
+                      OpenAI Models
+                    </SelectItem>
+                    {availableModels.slice(0, 3).map((model) => (
+                      <SelectItem key={model.value} value={model.value}>
+                        {model.label}
+                      </SelectItem>
+                    ))}
+                    
+                    {/* Other Models via OpenRouter */}
+                    <SelectItem value="header-other" disabled className="font-semibold text-gray-500 py-1 my-1 bg-gray-50">
+                      Other Models (via OpenRouter)
+                    </SelectItem>
+                    {availableModels.slice(3).map((model) => (
+                      <SelectItem key={model.value} value={model.value}>
+                        {model.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               
               {settings.modelName === "custom" && (
                 <Input
                   id="customModelName"
-                  placeholder="Enter custom model name"
-                  className="mt-2"
-                  onChange={(e) => setSettings({ ...settings, modelName: e.target.value })}
+                  placeholder="モデル名を入力（例: gpt-4, llama-3, claude-3-sonnet-20240229）"
+                  className="mt-2 w-full"
+                  value={settings.customModelValue || ""}
+                  onChange={(e) => setSettings({ 
+                    ...settings, 
+                    customModelValue: e.target.value,
+                    modelName: e.target.value
+                  })}
                 />
               )}
               
-              {settings.baseUrl.includes("openrouter") && !settings.modelName.includes("claude") && 
-                !settings.modelName.includes("mixtral") && settings.modelName !== "custom" && (
+              {/* Show suggestions based on API endpoint */}
+              {settings.baseUrl.includes("openrouter") && 
+                !settings.modelName.includes("claude") && 
+                !settings.modelName.includes("mixtral") && 
+                settings.modelName !== "custom" && (
                 <p className="text-xs text-amber-500 mt-1 flex items-center">
                   <Info className="mr-1 h-3 w-3" />
-                  Consider using Claude or Mixtral models with OpenRouter
+                  OpenRouterではClaude/Mixtralなど様々なモデルが利用できます
                 </p>
+              )}
+              
+              {settings.modelName === "custom" && (
+                <div className="text-xs text-gray-500 mt-1 space-y-1">
+                  <p className="flex items-center">
+                    <Info className="mr-1 h-3 w-3" />
+                    一般的なモデル名: gpt-4-turbo, gpt-3.5-turbo, claude-3-opus-20240229
+                  </p>
+                  <p className="flex items-center">
+                    <Info className="mr-1 h-3 w-3" />
+                    OpenRouter使用時は完全なモデル名が必要です（例: anthropic/claude-3-opus-20240229）
+                  </p>
+                </div>
               )}
             </div>
           </div>
@@ -211,7 +265,8 @@ export function ApiSettingsModal({
               variant="ghost" 
               size="sm"
               onClick={() => {
-                setSettings(defaultSettings);
+                // Import default values from the initialSettings prop
+                setSettings(initialSettings);
                 toast({
                   title: "Settings Reset",
                   description: "API settings have been reset to defaults",

@@ -24,15 +24,20 @@ export function RandomDAppCard({
   onDeepResearch,
 }: RandomDAppCardProps) {
   const { toast } = useToast();
-  const { isConnected } = useAccount();
+  const { isConnected, address } = useAccount();
   const [isFavorite, setIsFavorite] = useState(false);
   
   const addToFavoritesMutation = useMutation({
     mutationFn: async () => {
       if (!dapp) return;
-      return apiRequest("POST", "/api/favorites", {
-        dappId: dapp.id,
-        dappData: dapp,
+      return apiRequest({
+        method: "POST",
+        url: "/api/favorites", 
+        data: {
+          walletAddress: address,
+          dappId: dapp.id,
+          dappData: dapp,
+        }
       });
     },
     onSuccess: () => {
