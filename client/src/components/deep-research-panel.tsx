@@ -4,11 +4,12 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import { X, Settings } from "lucide-react";
+import { X, Settings, Zap } from "lucide-react";
 import { DApp } from "@/types/dapp";
 import { useToast } from "@/hooks/use-toast";
-import { performResearch } from "@/lib/openrouter-service";
+import { performResearch, ResearchResponse } from "@/lib/openrouter-service";
 import { ApiSettings } from "./api-settings-modal";
+import { DeepResearchOutput } from "@/lib/langchain-research";
 
 interface DeepResearchPanelProps {
   dapp: DApp;
@@ -23,6 +24,10 @@ export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPa
     features?: string[];
     developments?: { date: string; description: string }[];
     sentiment?: { positive: number; count: number };
+    competitors?: string[];
+    strengths?: string[];
+    weaknesses?: string[];
+    futureOutlook?: string;
     useClientApi?: boolean;
   } | null>(null);
   
@@ -36,9 +41,34 @@ export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPa
         chains: dapp.chains
       }, apiSettings?.apiKey && apiSettings.baseUrl ? apiSettings : undefined);
     },
-    onSuccess: (data) => {
+    onSuccess: (data: ResearchResponse) => {
       try {
         console.log("Research data received:", data);
+        
+        // Check if we have structured data from LangChain
+        if (data.structured) {
+          console.log("Using structured data from LangChain");
+          const structuredOutput = data.structured;
+          
+          const researchData = {
+            overview: structuredOutput.overview || "No overview available",
+            features: structuredOutput.features || [],
+            developments: structuredOutput.developments || [],
+            sentiment: structuredOutput.sentiment || { positive: 50, count: 0 },
+            competitors: structuredOutput.competitors || [],
+            strengths: structuredOutput.strengths || [],
+            weaknesses: structuredOutput.weaknesses || [],
+            futureOutlook: structuredOutput.futureOutlook,
+            useClientApi: !!apiSettings?.apiKey
+          };
+          
+          console.log("Structured research data ready:", researchData);
+          setResearch(researchData);
+          return;
+        }
+        
+        // Fallback to older parser for unstructured data
+        console.log("No structured data, parsing text response");
         // Try to parse the research content with improved parser
         const researchText = data.research.trim();
         
@@ -320,7 +350,7 @@ export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPa
                 )}
                 
                 {research.sentiment && (
-                  <div className="mb-2">
+                  <div className="mb-4 pb-4 border-b border-gray-200">
                     <h4 className="font-semibold text-gray-900 mb-2">Community Sentiment</h4>
                     <div className="flex items-center">
                       <div className="w-full bg-gray-200 rounded-full h-2.5 mr-2">
@@ -343,11 +373,60 @@ export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPa
                     )}
                   </div>
                 )}
+
+                {research.competitors && research.competitors.length > 0 && (
+                  <div className="mb-4 pb-4 border-b border-gray-200">
+                    <h4 className="font-semibold text-gray-900 mb-2">Competitors</h4>
+                    <ul className="list-disc pl-5 text-gray-600 space-y-1">
+                      {research.competitors.map((competitor, index) => (
+                        <li key={index}>{competitor}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 
-                <div className="mt-5 pt-4 border-t border-gray-200 text-center">
-                  <p className="text-xs text-gray-500">
-                    Research performed using {research.useClientApi ? 'client-side API' : 'server-side API'}.
-                  </p>
+                {(research.strengths && research.strengths.length > 0) || (research.weaknesses && research.weaknesses.length > 0) ? (
+                  <div className="mb-4 pb-4 border-b border-gray-200">
+                    <h4 className="font-semibold text-gray-900 mb-2">Strengths & Weaknesses</h4>
+                    
+                    {research.strengths && research.strengths.length > 0 && (
+                      <div className="mb-3">
+                        <h5 className="text-sm font-medium text-green-700 mb-1">Strengths</h5>
+                        <ul className="list-disc pl-5 text-gray-600 space-y-1">
+                          {research.strengths.map((strength, index) => (
+                            <li key={index}>{strength}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {research.weaknesses && research.weaknesses.length > 0 && (
+                      <div>
+                        <h5 className="text-sm font-medium text-amber-700 mb-1">Weaknesses</h5>
+                        <ul className="list-disc pl-5 text-gray-600 space-y-1">
+                          {research.weaknesses.map((weakness, index) => (
+                            <li key={index}>{weakness}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+                
+                {research.futureOutlook && (
+                  <div className="mb-4 pb-4 border-b border-gray-200">
+                    <h4 className="font-semibold text-gray-900 mb-2">Future Outlook</h4>
+                    <p className="text-gray-600 whitespace-pre-line">
+                      {research.futureOutlook}
+                    </p>
+                  </div>
+                )}
+                
+                <div className="flex items-center justify-center gap-2 mt-5 pt-4 border-t border-gray-200 text-center">
+                  <span className="text-xs text-gray-500">
+                    Research performed using {research.useClientApi ? 'client-side API with LangChain' : 'server-side API'}.
+                  </span>
+                  {research.useClientApi && <Zap className="h-3 w-3 text-amber-500" />}
                 </div>
               </div>
             ) : (

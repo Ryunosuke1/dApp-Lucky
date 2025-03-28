@@ -1,4 +1,5 @@
 import { getApiKey, ApiProvider } from "./api-keys";
+import { performLangChainResearch } from "./langchain-research";
 
 export interface ApiSettings {
   baseUrl: string;
@@ -19,7 +20,7 @@ export interface ResearchOutput {
 }
 
 /**
- * Creates a system prompt for deep research
+ * Creates a system prompt for deep research (fallback method)
  */
 function createSystemPrompt(input: ResearchInput): string {
   const dappName = input.dappName;
@@ -48,7 +49,7 @@ ALWAYS PROVIDE THE MOST ACCURATE, UP-TO-DATE INFORMATION POSSIBLE.`;
 }
 
 /**
- * Perform research using OpenAI API directly
+ * Perform research using OpenAI API directly (fallback method)
  */
 async function performOpenAIResearch(input: ResearchInput, apiSettings: ApiSettings): Promise<string> {
   const systemPrompt = createSystemPrompt(input);
@@ -82,13 +83,15 @@ async function performOpenAIResearch(input: ResearchInput, apiSettings: ApiSetti
 }
 
 /**
- * Perform deep research on a dApp
+ * Perform deep research on a dApp using LangChain (primary method)
  */
 export async function performResearch(
   input: ResearchInput,
   apiSettings?: ApiSettings // Use server API key if not provided
 ): Promise<ResearchOutput> {
   try {
+    console.log("Starting research with LangChain for dApp:", input.dappName);
+    
     // If API settings not provided, check for server-side API key
     if (!apiSettings) {
       const apiKey = getApiKey(ApiProvider.OPENAI) || getApiKey(ApiProvider.OPENROUTER);
@@ -103,12 +106,26 @@ export async function performResearch(
           ? 'https://openrouter.ai/api/v1' 
           : 'https://api.openai.com/v1',
         apiKey,
-        modelName: 'gpt-3.5-turbo',
+        modelName: 'gpt-4o',
       };
+      
+      console.log("Using server-side API key with model:", apiSettings.modelName);
+    } else {
+      console.log("Using client-provided API key with model:", 
+        apiSettings.modelName === "custom" ? apiSettings.customModelValue : apiSettings.modelName);
     }
     
-    const research = await performOpenAIResearch(input, apiSettings);
-    return { research };
+    try {
+      // Use the LangChain implementation for better research
+      const research = await performLangChainResearch(input, apiSettings);
+      return { research };
+    } catch (langChainError) {
+      console.error("LangChain research failed, falling back to direct API call:", langChainError);
+      
+      // Fallback to direct API call
+      const fallbackResearch = await performOpenAIResearch(input, apiSettings);
+      return { research: fallbackResearch };
+    }
   } catch (error) {
     console.error('Error performing research:', error);
     throw error;

@@ -12,7 +12,14 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 export function Header() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useAccount({
+    onConnect: ({ address }) => {
+      toast({
+        title: "ウォレット接続完了",
+        description: `MetaMaskウォレットが正常に接続されました！アドレス: ${address?.slice(0, 6)}...${address?.slice(-4)}`,
+      });
+    },
+  });
   const { connect } = useConnect();
   const { disconnect } = useDisconnect();
   const [isConnecting, setIsConnecting] = useState(false);
@@ -24,18 +31,14 @@ export function Header() {
     setIsConnecting(true);
     
     try {
-      // Use metaMask connector from wagmi
+      // MetaMaskコネクターを使用して接続
       await connect({ connector: metaMask() });
-      
-      toast({
-        title: "Wallet Connected",
-        description: "MetaMask wallet successfully connected!",
-      });
+      // 成功メッセージはonConnectイベントで表示されるので、ここでは表示しない
     } catch (error) {
       console.error("Connection error:", error);
       toast({
-        title: "Connection Failed",
-        description: "Failed to connect to MetaMask. Please install MetaMask extension or allow connection.",
+        title: "接続失敗",
+        description: "MetaMaskへの接続に失敗しました。MetaMask拡張機能がインストールされているか、接続を許可しているか確認してください。",
         variant: "destructive",
       });
     } finally {
