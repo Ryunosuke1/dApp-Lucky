@@ -159,10 +159,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Favorites management
+  // Legacy endpoint - kept for backward compatibility
   app.get("/api/favorites", async (req: Request, res: Response) => {
     try {
-      // In a real implementation, this would be the authenticated user's ID
-      // For demo purposes, we'll use a fixed user ID
+      // Default user ID for non-wallet users
       const userId = 1;
       
       const favorites = await storage.getFavorites(userId);
@@ -172,13 +172,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch favorites" });
     }
   });
+  
+  // New wallet-based favorites endpoints
+  app.get("/api/wallet/:walletAddress/favorites", async (req: Request, res: Response) => {
+    try {
+      const { walletAddress } = req.params;
+      
+      if (!walletAddress) {
+        return res.status(400).json({ message: "walletAddress is required" });
+      }
+      
+      const favorites = await storage.getFavoritesByWalletAddress(walletAddress);
+      res.json(favorites);
+    } catch (error) {
+      console.error("Error fetching favorites:", error);
+      res.status(500).json({ message: "Failed to fetch favorites" });
+    }
+  });
 
   app.post("/api/favorites", async (req: Request, res: Response) => {
     try {
-      // In a real implementation, this would be the authenticated user's ID
-      const userId = 1;
+      const { walletAddress, dappId, dappData } = req.body;
       
-      const { dappId, dappData } = req.body;
+      // Find or create user by wallet address if provided, or use default user
+      let userId = 1; // Default user ID
+      
+      if (walletAddress) {
+        const user = await storage.getOrCreateUserByWallet(walletAddress);
+        userId = user.id;
+      }
       
       // Validate request data
       const validatedData = insertFavoriteSchema.parse({
@@ -238,10 +260,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/favorites/reorder", async (req: Request, res: Response) => {
     try {
-      const { favorites } = req.body;
+      const { favorites, walletAddress } = req.body;
       
       if (!Array.isArray(favorites)) {
         return res.status(400).json({ message: "favorites must be an array" });
+      }
+      
+      // If wallet address provided, validate that favorites belong to this user
+      if (walletAddress) {
+        const user = await storage.getUserByWalletAddress(walletAddress);
+        if (user) {
+          // Check that all favorites belong to this user
+          // This is a simple check - in a real app you'd want more robust security
+          const userFavorites = await storage.getFavorites(user.id);
+          const userFavoriteIds = new Set(userFavorites.map(f => f.id));
+          
+          const allBelongToUser = favorites.every(f => userFavoriteIds.has(f.id));
+          if (!allBelongToUser) {
+            return res.status(403).json({ message: "Some favorites don't belong to this user" });
+          }
+        }
       }
       
       const success = await storage.updateFavoritePositions(favorites);
@@ -254,6 +292,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error reordering favorites:", error);
       res.status(500).json({ message: "Failed to reorder favorites" });
+    }
+  });
+  
+  // Wallet-specific route for deleting a favorite
+  app.delete("/api/wallet/:walletAddress/favorites/:dappId", async (req: Request, res: Response) => {
+    try {
+      const { walletAddress, dappId } = req.params;
+      
+      if (!walletAddress || !dappId) {
+        return res.status(400).json({ message: "walletAddress and dappId are required" });
+      }
+      
+      const user = await storage.getUserByWalletAddress(walletAddress);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      const favorite = await storage.getFavoriteByDappId(user.id, dappId);
+      if (!favorite) {
+        return res.status(404).json({ message: "Favorite not found" });
+      }
+      
+      const success = await storage.deleteFavorite(favorite.id);
+      
+      if (!success) {
+        return res.status(500).json({ message: "Failed to delete favorite" });
+      }
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting favorite:", error);
+      res.status(500).json({ message: "Failed to delete favorite" });
     }
   });
 
@@ -272,10 +342,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/experiences", async (req: Request, res: Response) => {
     try {
-      // In a real implementation, this would be the authenticated user's ID
-      const userId = 1;
+      const { dappId, content, rating, walletAddress } = req.body;
       
-      const { dappId, content, rating } = req.body;
+      // Find or create user by wallet address if provided, or use default user
+      let userId = 1; // Default user ID
+      
+      if (walletAddress) {
+        const user = await storage.getOrCreateUserByWallet(walletAddress);
+        userId = user.id;
+      }
       
       // Validate request data
       const validatedData = insertExperienceSchema.parse({
