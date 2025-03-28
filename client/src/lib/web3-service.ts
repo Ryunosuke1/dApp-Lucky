@@ -1,15 +1,24 @@
-import { createConfig, Chain } from 'wagmi';
+import { createConfig, http } from 'wagmi';
 import { mainnet, polygon, optimism, arbitrum } from 'wagmi/chains';
 import { metaMask } from 'wagmi/connectors';
+import { createStorage, cookieStorage } from 'wagmi';
 
-// Define supported chains as appropriate type
-export const chains: [Chain, ...Chain[]] = [mainnet, polygon, optimism, arbitrum];
+// Define supported chains
+export const chains = [mainnet, polygon, optimism, arbitrum];
 
-// Create wagmi config with only MetaMask connector
+// Create wagmi config for v2
 export const wagmiConfig = createConfig({
-  chains,
+  chains: [mainnet, polygon, optimism, arbitrum],
+  transports: {
+    [mainnet.id]: http(),
+    [polygon.id]: http(),
+    [optimism.id]: http(),
+    [arbitrum.id]: http(),
+  },
   connectors: [
     metaMask()
   ],
-  ssr: false, // Disable Server-Side Rendering
+  storage: createStorage({
+    storage: cookieStorage
+  })
 });

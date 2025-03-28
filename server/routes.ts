@@ -1,42 +1,41 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import axios from "axios";
 import { insertExperienceSchema, insertFavoriteSchema } from "@shared/schema";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
+import { defiLlamaApi } from "./defillama-api";
+import { performResearch, ApiSettings } from "./deep-research";
+import { hasApiKey, ApiProvider, getApiKey } from "./api-keys";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // prefix all routes with /api
   
-  // Random dApp from dAppRadar API
+  // Get API status to see which APIs have keys configured
+  app.get("/api/status", async (_req: Request, res: Response) => {
+    try {
+      const apiStatus = {
+        openai: hasApiKey(ApiProvider.OPENAI),
+        openrouter: hasApiKey(ApiProvider.OPENROUTER),
+      };
+      
+      res.json(apiStatus);
+    } catch (error) {
+      console.error("Error checking API status:", error);
+      res.status(500).json({ message: "Failed to check API status" });
+    }
+  });
+  
+  // Random dApp from DefiLlama API
   app.get("/api/dapps/random", async (req: Request, res: Response) => {
     try {
       const category = req.query.category as string | undefined;
-      // Call dAppRadar API to get random dApp
-      // For this implementation we'll use a mock API endpoint
-      // In a real implementation, this would be a call to the actual dAppRadar API
       
-      const response = await axios.get("https://api.dappradar.com/4tsxo4vuhotaojtl/dapps/rankings", {
-        params: {
-          chain: "ethereum",
-          category: category || undefined,
-          page: 1,
-          resultsPerPage: 50,
-        },
-        headers: {
-          "X-BLOBR-KEY": process.env.DAPPRADAR_API_KEY || "",
-        }
-      });
+      const randomDapp = await defiLlamaApi.getRandomProtocol(category);
       
-      // Get a random dApp from the results
-      const dapps = response.data.dapps || [];
-      if (dapps.length === 0) {
+      if (!randomDapp) {
         return res.status(404).json({ message: "No dApps found" });
       }
-      
-      const randomIndex = Math.floor(Math.random() * dapps.length);
-      const randomDapp = dapps[randomIndex];
       
       res.json(randomDapp);
     } catch (error) {
@@ -45,42 +44,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Deep Research using OpenRouter API
+  // Trending dApps from DefiLlama
+  app.get("/api/dapps/trending", async (_req: Request, res: Response) => {
+    try {
+      const trendingDapps = await defiLlamaApi.getTrendingProtocols(5);
+      res.json(trendingDapps);
+    } catch (error) {
+      console.error("Error fetching trending dApps:", error);
+      res.status(500).json({ message: "Failed to fetch trending dApps" });
+    }
+  });
+
+  // Deep Research using LangChain
   app.post("/api/research", async (req: Request, res: Response) => {
     try {
-      const { dappName, dappDescription } = req.body;
+      const { dappName, dappDescription, category, chains, apiSettings } = req.body;
       
       if (!dappName) {
         return res.status(400).json({ message: "dappName is required" });
       }
       
-      // Call OpenRouter API
-      const response = await axios.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        {
-          model: "openai/gpt-3.5-turbo",
-          messages: [
-            {
-              role: "system",
-              content: "You are a Web3 expert providing detailed research about dApps. Provide structured information including overview, key features, recent developments, and community sentiment."
-            },
-            {
-              role: "user",
-              content: `Provide deep research about the dApp called "${dappName}". ${dappDescription ? `Description: ${dappDescription}` : ""}`
-            }
-          ]
-        },
-        {
-          headers: {
-            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY || ""}`,
-            "HTTP-Referer": "https://dapp-explorer.example.com",
-            "X-Title": "dApp Explorer"
-          }
-        }
-      );
+      // If client provides API settings, use those, otherwise use server settings
+      let settings: ApiSettings | undefined = undefined;
       
-      const research = response.data.choices[0].message.content;
-      res.json({ research });
+      if (apiSettings) {
+        settings = apiSettings as ApiSettings;
+      } else {
+        const apiKey = getApiKey(ApiProvider.OPENAI) || getApiKey(ApiProvider.OPENROUTER);
+        
+        if (!apiKey) {
+          return res.status(400).json({ 
+            message: "No API key available. Please provide API settings or configure server API keys."
+          });
+        }
+        
+        settings = {
+          baseUrl: getApiKey(ApiProvider.OPENROUTER) 
+            ? 'https://openrouter.ai/api/v1' 
+            : 'https://api.openai.com/v1',
+          apiKey,
+          modelName: 'gpt-3.5-turbo',
+        };
+      }
+      
+      const researchResult = await performResearch({
+        dappName,
+        dappDescription,
+        category,
+        chains,
+      }, settings);
+      
+      res.json(researchResult);
     } catch (error) {
       console.error("Error performing research:", error);
       res.status(500).json({ message: "Failed to perform research" });

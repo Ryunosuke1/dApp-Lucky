@@ -56,6 +56,25 @@ export type Favorite = typeof favorites.$inferSelect;
 export type InsertExperience = z.infer<typeof insertExperienceSchema>;
 export type Experience = typeof experiences.$inferSelect;
 
+// DApp type definition
+export interface DApp {
+  id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  subcategory?: string;
+  website?: string;
+  image?: string;
+  stats?: {
+    users?: string;
+    activity?: string;
+    volume?: string;
+    balance?: string;
+  };
+  chains?: string[];
+  tags?: string[];
+}
+
 // Frontend schemas for validation
 export const shareExperienceSchema = z.object({
   dappId: z.string(),
