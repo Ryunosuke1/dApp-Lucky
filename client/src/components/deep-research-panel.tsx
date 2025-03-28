@@ -39,7 +39,7 @@ export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPa
     mutationFn: async () => {
       // Reset progress
       setResearchProgress(5);
-      setResearchStage("準備中...");
+      setResearchStage("Preparing...");
       
       // Simulate gradual progress updates
       const progressInterval = setInterval(() => {
@@ -51,15 +51,15 @@ export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPa
           
           // Update the research stage based on progress
           if (prev === 5) {
-            setResearchStage("初期分析中...");
+            setResearchStage("Initial analysis...");
           } else if (prev === 25) {
-            setResearchStage("機能の評価中...");
+            setResearchStage("Evaluating features...");
           } else if (prev === 45) {
-            setResearchStage("市場分析中...");
+            setResearchStage("Market analysis...");
           } else if (prev === 65) {
-            setResearchStage("コミュニティの評判を計算中...");
+            setResearchStage("Calculating community sentiment...");
           } else if (prev === 85) {
-            setResearchStage("最終レポートを生成中...");
+            setResearchStage("Generating final report...");
           }
           
           return prev + (20 * Math.random());
@@ -78,13 +78,13 @@ export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPa
         // Set to 100% when done
         clearInterval(progressInterval);
         setResearchProgress(100);
-        setResearchStage("完了！");
+        setResearchStage("Complete!");
         
         return result;
       } catch (error) {
         clearInterval(progressInterval);
         setResearchProgress(0);
-        setResearchStage("エラーが発生しました");
+        setResearchStage("Error occurred");
         throw error;
       }
     },
@@ -273,6 +273,11 @@ export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPa
   
   // Function to retry research
   const retryResearch = () => {
+    // Reset states before starting a new research
+    setResearch(null);
+    setResearchProgress(0);
+    setResearchStage("");
+    // Start the research
     researchMutation.mutate();
   };
   
@@ -320,7 +325,7 @@ export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPa
               <p className="text-center text-sm text-gray-500 mb-4">
                 <span className="font-medium">{researchStage}</span>
                 <br />
-                <span className="text-xs">{dapp.name}の調査中...</span>
+                <span className="text-xs">Researching {dapp.name}...</span>
               </p>
             </div>
             <Skeleton className="h-4 w-full" />
