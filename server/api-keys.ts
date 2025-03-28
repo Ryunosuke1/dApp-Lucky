@@ -22,6 +22,15 @@ export interface ApiKeys {
 }
 
 /**
+ * Model settings interface for LLM providers
+ */
+export interface ModelSettings {
+  baseUrl: string;
+  modelName: string;
+  apiKey?: string;
+}
+
+/**
  * Get API key for a specific provider
  */
 export function getApiKey(provider: ApiProvider): string | undefined {
@@ -32,6 +41,28 @@ export function getApiKey(provider: ApiProvider): string | undefined {
       return process.env.OPENAI_API_KEY;
     case ApiProvider.OPENROUTER:
       return process.env.OPENROUTER_API_KEY;
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Get model settings for LLM providers
+ */
+export function getModelSettings(provider: ApiProvider): ModelSettings | undefined {
+  switch (provider) {
+    case ApiProvider.OPENAI:
+      return {
+        baseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+        modelName: process.env.OPENAI_MODEL_NAME || 'gpt-4o',
+        apiKey: process.env.OPENAI_API_KEY
+      };
+    case ApiProvider.OPENROUTER:
+      return {
+        baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
+        modelName: process.env.OPENROUTER_MODEL_NAME || 'openai/gpt-4o',
+        apiKey: process.env.OPENROUTER_API_KEY
+      };
     default:
       return undefined;
   }

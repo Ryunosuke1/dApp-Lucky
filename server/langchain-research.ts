@@ -184,7 +184,65 @@ FORMAT YOUR RESPONSE WITH CLEAR SECTION HEADERS AND USE BULLET POINTS WHERE APPR
       new HumanMessage(marketAnalysisPrompt)
     ]);
 
-    console.log("Executing step 4: Final Report");
+    // First try to get structured JSON output
+    try {
+      console.log("Executing step 4a: Structured JSON Output");
+      const structuredOutputPrompt = `
+      Based on your analysis of "${input.dappName}", compile a comprehensive research report following this exact format:
+      
+      ${format_instructions}
+      
+      Ensure your response is JSON-formatted according to the schema above.`;
+      
+      const structuredResponse = await chat.invoke([
+        new SystemMessage("You are a JSON response formatter. Format all the previous analysis into a valid JSON structure according to the required schema."),
+        new SystemMessage("Previous initial analysis:"),
+        new SystemMessage(initialAnalysisResponse.content),
+        new SystemMessage("Previous feature evaluation:"),
+        new SystemMessage(featureEvaluationResponse.content),
+        new SystemMessage("Previous market analysis:"),
+        new SystemMessage(marketAnalysisResponse.content),
+        new HumanMessage(structuredOutputPrompt)
+      ]);
+      
+      // Parse the JSON response
+      try {
+        const jsonString = structuredResponse.content;
+        // Use regex to extract JSON if it's wrapped in backticks
+        const jsonMatch = jsonString.match(/```(?:json)?([\s\S]*?)```|({[\s\S]*})/);
+        const extractedJson = jsonMatch ? (jsonMatch[1] || jsonMatch[2]).trim() : jsonString;
+        
+        // Parse the JSON
+        const parsedOutput = JSON.parse(extractedJson);
+        console.log("Successfully parsed structured output");
+        
+        // For text output, also get a formatted text version for display
+        console.log("Executing step 4b: Formatted Text Report");
+        const finalOutputResponse = await chat.invoke([
+          new SystemMessage("You are a comprehensive Web3 analyst. Format all the previous analysis into a well-structured research report."),
+          new SystemMessage("Previous initial analysis:"),
+          new SystemMessage(initialAnalysisResponse.content),
+          new SystemMessage("Previous feature evaluation:"),
+          new SystemMessage(featureEvaluationResponse.content),
+          new SystemMessage("Previous market analysis:"),
+          new SystemMessage(marketAnalysisResponse.content),
+          new HumanMessage(finalOutputPrompt)
+        ]);
+        
+        // Return both the structured and text formats
+        return {
+          structured: parsedOutput,
+          text: finalOutputResponse.content as string
+        };
+      } catch (parseError) {
+        console.error("Failed to parse structured output, falling back to text:", parseError);
+      }
+    } catch (structuredError) {
+      console.error("Failed to generate structured output, falling back to text:", structuredError);
+    }
+    
+    // Fallback to text-only output
+    console.log("Executing step 4: Final Text Report");
     const finalOutputResponse = await chat.invoke([
       new SystemMessage("You are a comprehensive Web3 analyst. Format all the previous analysis into a well-structured research report."),
       new SystemMessage("Previous initial analysis:"),
@@ -196,7 +254,9 @@ FORMAT YOUR RESPONSE WITH CLEAR SECTION HEADERS AND USE BULLET POINTS WHERE APPR
       new HumanMessage(finalOutputPrompt)
     ]);
 
-    return finalOutputResponse.content as string;
+    return {
+      text: finalOutputResponse.content as string
+    };
   } catch (error) {
     console.error("Error in LangChain research:", error);
     throw error;

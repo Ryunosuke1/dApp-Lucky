@@ -1,4 +1,4 @@
-import { getApiKey, ApiProvider } from "./api-keys";
+import { getApiKey, ApiProvider, getModelSettings } from "./api-keys";
 import { performLangChainResearch } from "./langchain-research";
 
 export interface ApiSettings {
@@ -17,6 +17,7 @@ export interface ResearchInput {
 
 export interface ResearchOutput {
   research: string;
+  structured?: any;
 }
 
 /**
@@ -94,22 +95,26 @@ export async function performResearch(
     
     // If API settings not provided, check for server-side API key
     if (!apiSettings) {
-      const apiKey = getApiKey(ApiProvider.OPENAI) || getApiKey(ApiProvider.OPENROUTER);
+      // Try OpenRouter first, then fall back to OpenAI
+      let modelSettings = getModelSettings(ApiProvider.OPENROUTER);
       
-      if (!apiKey) {
+      // If no OpenRouter settings, try OpenAI
+      if (!modelSettings?.apiKey) {
+        modelSettings = getModelSettings(ApiProvider.OPENAI);
+      }
+      
+      if (!modelSettings?.apiKey) {
         throw new Error('No API key available for research');
       }
       
-      // Use default settings with server API key
+      // Use server-side settings
       apiSettings = {
-        baseUrl: getApiKey(ApiProvider.OPENROUTER) 
-          ? 'https://openrouter.ai/api/v1' 
-          : 'https://api.openai.com/v1',
-        apiKey,
-        modelName: 'gpt-4o',
+        baseUrl: modelSettings.baseUrl,
+        apiKey: modelSettings.apiKey,
+        modelName: modelSettings.modelName,
       };
       
-      console.log("Using server-side API key with model:", apiSettings.modelName);
+      console.log("Using server-side API settings with model:", modelSettings.modelName);
     } else {
       console.log("Using client-provided API key with model:", 
         apiSettings.modelName === "custom" ? apiSettings.customModelValue : apiSettings.modelName);

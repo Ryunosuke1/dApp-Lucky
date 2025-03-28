@@ -121,27 +121,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "dappName is required" });
       }
       
+      console.log(`Performing research for dApp: ${dappName}`);
+      
       // If client provides API settings, use those, otherwise use server settings
       let settings: ApiSettings | undefined = undefined;
       
       if (apiSettings) {
         settings = apiSettings as ApiSettings;
-      } else {
-        const apiKey = getApiKey(ApiProvider.OPENAI) || getApiKey(ApiProvider.OPENROUTER);
-        
-        if (!apiKey) {
-          return res.status(400).json({ 
-            message: "No API key available. Please provide API settings or configure server API keys."
-          });
-        }
-        
-        settings = {
-          baseUrl: getApiKey(ApiProvider.OPENROUTER) 
-            ? 'https://openrouter.ai/api/v1' 
-            : 'https://api.openai.com/v1',
-          apiKey,
-          modelName: 'gpt-3.5-turbo',
-        };
+        console.log(`Using client-provided API settings with model: ${
+          settings.modelName === 'custom' ? settings.customModelValue : settings.modelName
+        }`);
       }
       
       const researchResult = await performResearch({
@@ -151,10 +140,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         chains,
       }, settings);
       
-      res.json(researchResult);
+      // Send both text and structured data if available
+      res.json({
+        research: researchResult.research,
+        structured: researchResult.structured
+      });
     } catch (error) {
       console.error("Error performing research:", error);
-      res.status(500).json({ message: "Failed to perform research" });
+      res.status(500).json({ 
+        message: "Failed to perform research", 
+        error: error instanceof Error ? error.message : "Unknown error" 
+      });
     }
   });
 

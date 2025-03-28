@@ -23,7 +23,7 @@ export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPa
     overview?: string;
     features?: string[];
     developments?: { date: string; description: string }[];
-    sentiment?: { positive: number; count: number };
+    sentiment?: { positive: number; count?: number };
     competitors?: string[];
     strengths?: string[];
     weaknesses?: string[];
@@ -31,15 +31,62 @@ export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPa
     useClientApi?: boolean;
   } | null>(null);
   
+  // Progress tracking for research (0-100)
+  const [researchProgress, setResearchProgress] = useState<number>(0);
+  const [researchStage, setResearchStage] = useState<string>("");
+  
   const researchMutation = useMutation({
     mutationFn: async () => {
-      // Pass apiSettings (can be undefined) to let the service decide whether to use client or server API
-      return await performResearch({
-        dappName: dapp.name,
-        dappDescription: dapp.description,
-        category: dapp.category,
-        chains: dapp.chains
-      }, apiSettings?.apiKey && apiSettings.baseUrl ? apiSettings : undefined);
+      // Reset progress
+      setResearchProgress(5);
+      setResearchStage("準備中...");
+      
+      // Simulate gradual progress updates
+      const progressInterval = setInterval(() => {
+        setResearchProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return prev;
+          }
+          
+          // Update the research stage based on progress
+          if (prev === 5) {
+            setResearchStage("初期分析中...");
+          } else if (prev === 25) {
+            setResearchStage("機能の評価中...");
+          } else if (prev === 45) {
+            setResearchStage("市場分析中...");
+          } else if (prev === 65) {
+            setResearchStage("コミュニティの評判を計算中...");
+          } else if (prev === 85) {
+            setResearchStage("最終レポートを生成中...");
+          }
+          
+          return prev + (20 * Math.random());
+        });
+      }, 2000);
+      
+      try {
+        // Pass apiSettings (can be undefined) to let the service decide whether to use client or server API
+        const result = await performResearch({
+          dappName: dapp.name,
+          dappDescription: dapp.description,
+          category: dapp.category,
+          chains: dapp.chains
+        }, apiSettings?.apiKey && apiSettings.baseUrl ? apiSettings : undefined);
+        
+        // Set to 100% when done
+        clearInterval(progressInterval);
+        setResearchProgress(100);
+        setResearchStage("完了！");
+        
+        return result;
+      } catch (error) {
+        clearInterval(progressInterval);
+        setResearchProgress(0);
+        setResearchStage("エラーが発生しました");
+        throw error;
+      }
     },
     onSuccess: (data: ResearchResponse) => {
       try {
@@ -54,7 +101,7 @@ export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPa
             overview: structuredOutput.overview || "No overview available",
             features: structuredOutput.features || [],
             developments: structuredOutput.developments || [],
-            sentiment: structuredOutput.sentiment || { positive: 50, count: 0 },
+            sentiment: structuredOutput.sentiment || { positive: 50, count: undefined },
             competitors: structuredOutput.competitors || [],
             strengths: structuredOutput.strengths || [],
             weaknesses: structuredOutput.weaknesses || [],
@@ -274,10 +321,14 @@ export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPa
       <Card className="bg-gray-50 rounded-xl p-4">
         {researchMutation.isPending ? (
           <div className="space-y-4">
-            <div className="flex justify-center mb-2">
-              <Progress className="w-full h-2" value={30} />
+            <div className="flex flex-col items-center gap-2 mb-4">
+              <Progress className="w-full h-2" value={researchProgress} />
+              <p className="text-center text-sm text-gray-500 mb-4">
+                <span className="font-medium">{researchStage}</span>
+                <br />
+                <span className="text-xs">{dapp.name}の調査中...</span>
+              </p>
             </div>
-            <p className="text-center text-sm text-gray-500 mb-4">Researching {dapp.name}...</p>
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-3/4" />
@@ -366,7 +417,7 @@ export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPa
                         {research.sentiment.positive}% Positive
                       </span>
                     </div>
-                    {research.sentiment.count > 0 && (
+                    {research.sentiment.count && research.sentiment.count > 0 && (
                       <p className="mt-2 text-sm text-gray-600">
                         Based on {research.sentiment.count} recent social media mentions and forum discussions.
                       </p>
