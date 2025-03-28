@@ -117,12 +117,28 @@ async function performClientResearch(
     } catch (structuredError) {
       console.error("Structured output failed, falling back to text output:", structuredError);
       
+      // Add more detailed error information
+      const errorMsg = structuredError instanceof Error 
+        ? structuredError.message 
+        : 'Unknown error with structured output';
+        
+      console.log(`Structured output error details: ${errorMsg}`);
+      
       // If structured output fails, fall back to simple text research
       const textResearch = await performSimpleLangChainResearch(dapp, apiSettings);
       return { research: textResearch };
     }
   } catch (error) {
     console.error("Client-side LangChain research failed, falling back to direct API call:", error);
+    
+    // Add more detailed error information
+    const errorMsg = error instanceof Error 
+      ? error.message 
+      : 'Unknown error with LangChain research';
+      
+    console.log(`LangChain error details: ${errorMsg}`);
+    
+    // If LangChain fails completely, try direct API call
     return performDirectApiResearch(request, apiSettings);
   }
 }
@@ -198,7 +214,15 @@ async function performServerResearch(request: ResearchRequest): Promise<Research
     return response as ResearchResponse;
   } catch (error) {
     console.error("Server-side research error:", error);
-    throw new Error("Failed to perform research using server API. Please configure client-side API settings or try again later.");
+    
+    // Add more detailed error information
+    const errorMsg = error instanceof Error 
+      ? error.message 
+      : 'Unknown error with server-side research';
+      
+    console.log(`Server API error details: ${errorMsg}`);
+    
+    throw new Error("Failed to perform research using server API. The server may not have API keys configured. Please try providing your own API key in the settings.");
   }
 }
 
