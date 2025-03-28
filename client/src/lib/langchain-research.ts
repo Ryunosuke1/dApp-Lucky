@@ -81,6 +81,18 @@ export async function performLangChainResearch(
       modelName = apiSettings.customModelValue;
     }
 
+    // Detect Gemini or other non-OpenAI models and warn about potential compatibility issues
+    const isGeminiModel = modelName.toLowerCase().includes('gemini');
+    const isNonOpenAIModel = !modelName.includes('gpt') && 
+                            !modelName.includes('claude') && 
+                            !modelName.includes('mixtral');
+    
+    if (isGeminiModel) {
+      console.log(`Warning: Using Gemini model (${modelName}). These models may have compatibility issues with LangChain's structured output.`);
+    } else if (isNonOpenAIModel) {
+      console.log(`Warning: Using non-standard model (${modelName}). This may have compatibility issues with LangChain.`);
+    }
+
     console.log(`Starting LangChain research with model: ${modelName}`);
 
     // Create LangChain chat model with the appropriate settings

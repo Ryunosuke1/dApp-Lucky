@@ -152,50 +152,109 @@ async function performDirectApiResearch(
 ): Promise<ResearchResponse> {
   console.log("Falling back to direct API call for research");
   
-  // Prepare the request to OpenAI compatible API
-  const endpoint = `${apiSettings.baseUrl.endsWith('/') ? apiSettings.baseUrl : apiSettings.baseUrl + '/'}chat/completions`;
-  
-  const systemPrompt = createSystemPrompt(request);
-  
-  // Determine which model name to use
-  let modelName = apiSettings.modelName;
-  if (apiSettings.modelName === "custom" && apiSettings.customModelValue) {
-    modelName = apiSettings.customModelValue;
-  }
-  
-  console.log(`Using model: ${modelName}`);
-  
-  const response = await axios.post(endpoint, {
-    model: modelName,
-    messages: [
-      {
-        role: "system",
-        content: systemPrompt
-      },
-      {
-        role: "user",
-        content: `Provide detailed research about the dApp called "${request.dappName}". Structure your response with clear sections including: 
-        - Overview
-        - Key Features (bullet points)
-        - Recent Developments (with dates)
-        - Community Sentiment (include percentage positive, if possible)
-        
-        ${request.dappDescription ? `Description: ${request.dappDescription}` : ""}`
-      }
-    ],
-    temperature: 0.5,
-    max_tokens: 1500,
-  }, {
-    headers: {
-      "Authorization": `Bearer ${apiSettings.apiKey}`,
-      "Content-Type": "application/json"
+  try {
+    // Prepare the request to OpenAI compatible API
+    const endpoint = `${apiSettings.baseUrl.endsWith('/') ? apiSettings.baseUrl : apiSettings.baseUrl + '/'}chat/completions`;
+    
+    const systemPrompt = createSystemPrompt(request);
+    
+    // Determine which model name to use
+    let modelName = apiSettings.modelName;
+    if (apiSettings.modelName === "custom" && apiSettings.customModelValue) {
+      modelName = apiSettings.customModelValue;
     }
-  });
-
-  // Extract the research content from the response
-  const researchContent = response.data.choices[0]?.message?.content || "No research results available";
-  
-  return { research: researchContent };
+    
+    // Check if it's a Gemini model
+    const isGeminiModel = modelName.toLowerCase().includes('gemini');
+    
+    console.log(`Using model: ${modelName} with direct API call`);
+    
+    const response = await axios.post(endpoint, {
+      model: modelName,
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt
+        },
+        {
+          role: "user",
+          content: `Provide detailed research about the dApp called "${request.dappName}". Structure your response with clear sections including: 
+          - Overview
+          - Key Features (bullet points)
+          - Recent Developments (with dates)
+          - Community Sentiment (include percentage positive, if possible)
+          
+          ${request.dappDescription ? `Description: ${request.dappDescription}` : ""}`
+        }
+      ],
+      temperature: 0.5,
+      max_tokens: 1500,
+    }, {
+      headers: {
+        "Authorization": `Bearer ${apiSettings.apiKey}`,
+        "Content-Type": "application/json"
+      }
+    });
+    
+    console.log("Direct API response received:", Object.keys(response.data));
+    
+    // Carefully handle different potential response structures
+    let researchContent = "No research results available";
+    
+    if (response.data.choices && response.data.choices.length > 0) {
+      // Standard OpenAI-like response
+      if (response.data.choices[0].message?.content) {
+        researchContent = response.data.choices[0].message.content;
+      } 
+      // Alternative response structures
+      else if (response.data.choices[0].text) {
+        researchContent = response.data.choices[0].text;
+      }
+    }
+    // Handle response formats from other providers
+    else if (response.data.content) {
+      researchContent = response.data.content;
+    }
+    else if (response.data.output) {
+      researchContent = response.data.output;
+    }
+    else if (response.data.generations && response.data.generations.length > 0) {
+      // Some providers might use this format
+      researchContent = response.data.generations[0].text || response.data.generations[0].content || JSON.stringify(response.data.generations[0]);
+    }
+    
+    // If we still have no content, provide a useful debug message
+    if (researchContent === "No research results available") {
+      console.log("Could not extract content from response. Response data:", JSON.stringify(response.data));
+    }
+    
+    return { research: researchContent };
+  } catch (error) {
+    console.error("Error in direct API call:", error);
+    
+    // Get detailed error information
+    let errorMessage = "API call failed with unknown error";
+    
+    if (error.response) {
+      // The request was made and the server responded with a status code that falls out of the range of 2xx
+      console.log("API error response:", error.response.data);
+      console.log("API error status:", error.response.status);
+      
+      errorMessage = `API call failed with status ${error.response.status}: ${JSON.stringify(error.response.data)}`;
+    } else if (error.request) {
+      // The request was made but no response was received
+      console.log("API error request:", error.request);
+      errorMessage = "API call received no response. Check your network connection and API endpoint.";
+    } else {
+      // Something happened in setting up the request that triggered an Error
+      console.log("API error message:", error.message);
+      errorMessage = `API call setup error: ${error.message}`;
+    }
+    
+    return { 
+      research: `Error performing research: ${errorMessage}\n\nPlease check your API settings and try again.` 
+    };
+  }
 }
 
 /**
