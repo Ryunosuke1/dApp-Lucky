@@ -2,12 +2,137 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  --primary: 221.2 83.2% 53.3%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 221.2 83.2% 53.3%;
+  --radius: 0.5rem;
+}
+
 @layer base {
   * {
-    @apply border-border;
+    @apply border-gray-200;
   }
 
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    line-height: 1.5;
+    letter-spacing: -0.01em;
   }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-medium leading-tight mb-2;
+  }
+
+  h1 { @apply text-3xl; }
+  h2 { @apply text-2xl; }
+  h3 { @apply text-xl; }
+}
+
+@layer components {
+
+  .nordic-input {
+    @apply border border-input rounded-md px-3 py-2 transition-all duration-200 focus:border-primary focus:ring-2 focus:ring-ring focus:ring-opacity-10 focus:outline-none;
+  }
+
+  .nordic-tabs {
+    @apply flex border-b mb-4 border-gray-200;
+    background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 10h20v1H0z' fill='%23000000' fill-opacity='0.05'/%3E%3C/svg%3E");
+    background-size: 10px 10px;
+  }
+
+  .nordic-tab {
+    @apply px-4 py-3 font-medium transition-all duration-200 text-muted-foreground border-b-2 border-transparent;
+  }
+
+  .nordic-tab-active {
+    @apply text-primary border-primary;
+  }
+
+  .nordic-tab:hover:not(.nordic-tab-active) {
+    @apply text-foreground;
+  }
+
+  .nordic-progress-bar {
+    @apply h-1 rounded bg-gray-200 overflow-hidden;
+  }
+
+  .nordic-progress-bar-fill {
+    @apply h-full transition-all duration-300 ease-in-out bg-primary;
+  }
+}
+
+@layer utilities {
+  .will-change-transform {
+    will-change: transform;
+  }
+
+  .content-visibility-auto {
+    content-visibility: auto;
+  }
+
+  img.lazy-load {
+    @apply opacity-0 transition-opacity duration-300;
+  }
+
+  img.lazy-load.is-visible {
+    @apply opacity-100;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      @apply !duration-instant !animate-none !scroll-auto;
+    }
+  }
+
+  .animate-fadeIn {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+
+  .animate-dialog-expand {
+    animation: dialog-expand 300ms cubic-bezier(0.16, 1, 0.3, 1);
+    transform-origin: var(--animation-origin-x, 50%) var(--animation-origin-y, 50%);
+  }
+
+  @keyframes fadeIn {
+    from {
+      @apply opacity-0 translate-y-2;
+    }
+    to {
+      @apply opacity-100 translate-y-0;
+    }
+  }
+
+  @keyframes dialog-expand {
+    from {
+      @apply opacity-0;
+      transform: translate(var(--animation-translate-x, 0), var(--animation-translate-y, 0)) scale(var(--animation-scale, 0.95));
+    }
+    to {
+      @apply opacity-100;
+      transform: translate(0, 0) scale(1);
+    }
+  }
+
+  .space-y-1 > * + * { @apply mt-1; }
+  .space-y-2 > * + * { @apply mt-2; }
+  .space-y-4 > * + * { @apply mt-4; }
+  .space-x-2 > * + * { @apply ml-2; }
+  .space-x-4 > * + * { @apply ml-4; }
 }

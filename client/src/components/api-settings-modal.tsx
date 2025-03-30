@@ -1,290 +1,243 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Info } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { availableModels } from "@/hooks/use-api-settings";
-import { useAccount } from "wagmi";
-
-// Interface for API settings
-export interface ApiSettings {
-  baseUrl: string;
-  apiKey: string;
-  modelName: string;
-  customModelValue?: string; // Optional field for storing custom model value
-}
+import React, { useState, useEffect } from 'react';
+import { Dialog, Transition } from '@headlessui/react';
+import { XMarkIcon } from '@heroicons/react/24/outline';
+import { useApiSettings } from '@/hooks/use-api-settings';
 
 interface ApiSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialSettings: ApiSettings;
-  onSave: (settings: ApiSettings) => void;
+  triggerRef?: React.RefObject<HTMLButtonElement>;
 }
 
-export function ApiSettingsModal({
-  isOpen,
-  onClose,
-  initialSettings,
-  onSave,
-}: ApiSettingsModalProps) {
-  const [settings, setSettings] = useState<ApiSettings>(initialSettings);
-  const { toast } = useToast();
-  const { address, isConnected } = useAccount();
-  
-  // Helper templates for popular APIs
-  const templates = [
-    { name: "OpenAI", url: "https://api.openai.com/v1", models: ["gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"] },
-    { name: "OpenRouter", url: "https://openrouter.ai/api/v1", models: ["claude-3-opus-20240229", "claude-3-sonnet-20240229", "mixtral-8x7b-32768"] },
-    { name: "Custom", url: "", models: [] }
-  ];
-  
-  const setApiTemplate = (templateName: string) => {
-    const template = templates.find(t => t.name === templateName);
-    if (template) {
-      setSettings({
-        ...settings,
-        baseUrl: template.url,
-        modelName: template.models.length > 0 ? template.models[0] : settings.modelName
-      });
+const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onClose, triggerRef }) => {
+  const { settings, updateSettings } = useApiSettings();
+  const [activeTab, setActiveTab] = useState<'openai' | 'dappradar'>('openai');
+  const [openaiKey, setOpenaiKey] = useState('');
+  const [openaiBaseUrl, setOpenaiBaseUrl] = useState('');
+  const [openaiModel, setOpenaiModel] = useState('');
+  const [dappradarKey, setDappradarKey] = useState('');
+  const [animationOrigin, setAnimationOrigin] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    if (isOpen) {
+      setOpenaiKey(settings.openai.apiKey || '');
+      setOpenaiBaseUrl(settings.openai.baseUrl || '');
+      setOpenaiModel(settings.openai.model || '');
+      setDappradarKey(settings.dappradar.apiKey || '');
+      
+      // Set animation origin based on trigger button position
+      if (triggerRef && triggerRef.current) {
+        const rect = triggerRef.current.getBoundingClientRect();
+        setAnimationOrigin({
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2
+        });
+      } else {
+        // Default to center of screen if no trigger ref
+        setAnimationOrigin({
+          x: window.innerWidth / 2,
+          y: window.innerHeight / 2
+        });
+      }
     }
-  };
+  }, [isOpen, settings, triggerRef]);
 
   const handleSave = () => {
-    // Validate settings
-    if (!settings.baseUrl || !settings.apiKey || !settings.modelName) {
-      toast({
-        title: "Missing Fields",
-        description: "Please fill in all fields",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // If baseUrl doesn't end with a slash, add it
-    let baseUrl = settings.baseUrl;
-    if (baseUrl && !baseUrl.endsWith("/")) {
-      baseUrl += "/";
-    }
-
-    // Save to localStorage
-    const updatedSettings = {
-      ...settings,
-      baseUrl,
-    };
-    
-    onSave(updatedSettings);
-    
-    toast({
-      title: "Settings Saved",
-      description: isConnected 
-        ? `API settings saved for wallet ${address?.slice(0, 6)}...` 
-        : "API settings saved to browser storage",
+    updateSettings({
+      openai: {
+        apiKey: openaiKey,
+        baseUrl: openaiBaseUrl || 'https://api.openai.com/v1',
+        model: openaiModel || 'gpt-3.5-turbo'
+      },
+      dappradar: {
+        apiKey: dappradarKey
+      }
     });
-    
     onClose();
   };
 
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>API Settings</DialogTitle>
-          <DialogDescription>
-            Configure your OpenAI-compatible API settings. {isConnected 
-              ? `Settings will be saved for your connected wallet (${address?.slice(0, 6)}...).`
-              : 'Settings will be stored in your browser.'}
-          </DialogDescription>
-        </DialogHeader>
+  const modelOptions = [
+    { value: 'gpt-3.5-turbo', label: 'OpenAI GPT-3.5 Turbo' },
+    { value: 'gpt-4', label: 'OpenAI GPT-4' },
+    { value: 'gpt-4-turbo', label: 'OpenAI GPT-4 Turbo' },
+    { value: 'google/gemma-3-27b-it:free', label: 'Google Gemma 3 27B-IT' },
+    { value: 'anthropic/claude-3-opus:beta', label: 'Anthropic Claude 3 Opus' },
+    { value: 'anthropic/claude-3-sonnet:beta', label: 'Anthropic Claude 3 Sonnet' },
+    { value: 'meta-llama/llama-3-70b-instruct:nitro', label: 'Meta Llama 3 70B' },
+  ];
 
-        <div className="grid gap-4 py-4">
-          {/* API Provider Template Buttons */}
-          <div className="flex gap-2 justify-center mb-2">
-            {templates.map(template => (
-              <Button 
-                key={template.name}
-                variant={settings.baseUrl === template.url ? "default" : "outline"}
-                size="sm"
-                onClick={() => setApiTemplate(template.name)}
-                className="min-w-20"
-              >
-                {template.name}
-              </Button>
-            ))}
-          </div>
-          
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="baseUrl" className="text-right">
-              Base URL
-            </Label>
-            <Input
-              id="baseUrl"
-              placeholder="https://api.openai.com/v1"
-              className="col-span-3"
-              value={settings.baseUrl}
-              onChange={(e) => setSettings({ ...settings, baseUrl: e.target.value })}
-            />
-          </div>
-          
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="apiKey" className="text-right">
-              API Key
-            </Label>
-            <Input
-              id="apiKey"
-              type="password"
-              placeholder="sk-..."
-              className="col-span-3"
-              value={settings.apiKey}
-              onChange={(e) => setSettings({ ...settings, apiKey: e.target.value })}
-            />
-          </div>
-          
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="modelName" className="text-right">
-              Model
-            </Label>
-            <div className="col-span-3">
-              <div className="flex gap-2">
-                <Select 
-                  value={settings.modelName === "custom" ? "custom" : settings.modelName} 
-                  onValueChange={(value) => {
-                    if (value === "custom") {
-                      // Keep existing model name when switching to custom
-                      setSettings({ 
-                        ...settings, 
-                        modelName: "custom" 
-                      });
-                    } else {
-                      setSettings({ ...settings, modelName: value });
-                    }
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a model" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="custom">
-                      <span className="flex items-center gap-2">
-                        <Info className="h-4 w-4" />
-                        カスタムモデル...
-                      </span>
-                    </SelectItem>
-                    
-                    {/* OpenAI Models */}
-                    <SelectItem value="header-openai" disabled className="font-semibold text-gray-500 py-1 my-1 bg-gray-50">
-                      OpenAI Models
-                    </SelectItem>
-                    {availableModels.slice(0, 3).map((model) => (
-                      <SelectItem key={model.value} value={model.value}>
-                        {model.label}
-                      </SelectItem>
-                    ))}
-                    
-                    {/* Other Models via OpenRouter */}
-                    <SelectItem value="header-other" disabled className="font-semibold text-gray-500 py-1 my-1 bg-gray-50">
-                      Other Models (via OpenRouter)
-                    </SelectItem>
-                    {availableModels.slice(3).map((model) => (
-                      <SelectItem key={model.value} value={model.value}>
-                        {model.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              {settings.modelName === "custom" && (
-                <Input
-                  id="customModelName"
-                  placeholder="モデル名を入力（例: gpt-4, llama-3, claude-3-sonnet-20240229）"
-                  className="mt-2 w-full"
-                  value={settings.customModelValue || ""}
-                  onChange={(e) => setSettings({ 
-                    ...settings, 
-                    customModelValue: e.target.value,
-                    modelName: e.target.value
-                  })}
-                />
-              )}
-              
-              {/* Show suggestions based on API endpoint */}
-              {settings.baseUrl.includes("openrouter") && 
-                !settings.modelName.includes("claude") && 
-                !settings.modelName.includes("mixtral") && 
-                settings.modelName !== "custom" && (
-                <p className="text-xs text-amber-500 mt-1 flex items-center">
-                  <Info className="mr-1 h-3 w-3" />
-                  OpenRouterではClaude/Mixtralなど様々なモデルが利用できます
-                </p>
-              )}
-              
-              {settings.modelName === "custom" && (
-                <div className="text-xs text-gray-500 mt-1 space-y-1">
-                  <p className="flex items-center">
-                    <Info className="mr-1 h-3 w-3" />
-                    一般的なモデル名: gpt-4-turbo, gpt-3.5-turbo, claude-3-opus-20240229
-                  </p>
-                  <p className="flex items-center">
-                    <Info className="mr-1 h-3 w-3" />
-                    OpenRouter使用時は完全なモデル名が必要です（例: anthropic/claude-3-opus-20240229）
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-        
-        <div className="mb-4 mt-2 text-xs text-gray-500 bg-gray-50 p-3 rounded-md">
-          <p className="mb-1 flex items-center"><Info className="mr-1 h-3 w-3" /> Settings are stored locally in your browser.</p>
-          {isConnected ? (
-            <p className="flex items-center"><Info className="mr-1 h-3 w-3" /> Connected wallet: {address?.slice(0, 6)}...{address?.slice(-4)}</p>
-          ) : (
-            <p className="flex items-center"><Info className="mr-1 h-3 w-3" /> Connect a wallet to save settings per wallet.</p>
-          )}
-        </div>
-        
-        <DialogFooter className="flex justify-between items-center">
-          <div>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => {
-                // Import default values from the initialSettings prop
-                setSettings(initialSettings);
-                toast({
-                  title: "Settings Reset",
-                  description: "API settings have been reset to defaults",
-                });
+  return (
+    <Transition show={isOpen} as={React.Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
+        <Transition.Child
+          as={React.Fragment}
+          enter="ease-out duration-500"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-300"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
+        </Transition.Child>
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <Transition.Child
+              as={React.Fragment}
+              enter="ease-out duration-500"
+              enterFrom={`opacity-0 scale-0`}
+              enterTo="opacity-100 scale-100"
+              leave="ease-in duration-300"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-0"
+              style={{
+                transformOrigin: `${animationOrigin.x}px ${animationOrigin.y}px`
               }}
-              className="text-red-500 hover:text-red-700 hover:bg-red-50"
             >
-              Reset
-            </Button>
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-lg bg-white p-6 shadow-xl transition-all">
+                <div className="absolute right-0 top-0 pr-4 pt-4">
+                  <button
+                    type="button"
+                    className="rounded-md bg-white text-gray-400 hover:text-gray-500"
+                    onClick={onClose}
+                  >
+                    <span className="sr-only">Close</span>
+                    <XMarkIcon className="h-6 w-6" aria-hidden="true" />
+                  </button>
+                </div>
+
+                <Dialog.Title as="h3" className="text-lg font-semibold leading-6 text-gray-900">
+                  API Settings
+                </Dialog.Title>
+                <p className="mt-2 text-sm text-gray-500">
+                  Configure API settings for DeepResearch and DappRadar integration.
+                </p>
+
+                <div className="mt-4">
+                  <div className="flex border-b">
+                    <button
+                      className={`px-4 py-2 font-medium ${
+                        activeTab === 'openai'
+                          ? 'border-b-2 border-blue-500 text-blue-600'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                      onClick={() => setActiveTab('openai')}
+                    >
+                      OpenAI / LLM
+                    </button>
+                    <button
+                      className={`px-4 py-2 font-medium ${
+                        activeTab === 'dappradar'
+                          ? 'border-b-2 border-blue-500 text-blue-600'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                      onClick={() => setActiveTab('dappradar')}
+                    >
+                      DappRadar
+                    </button>
+                  </div>
+
+                  <div className="mt-4">
+                    {activeTab === 'openai' ? (
+                      <div className="space-y-4">
+                        <div>
+                          <label htmlFor="openai-key" className="block text-sm font-medium text-gray-700">
+                            API Key
+                          </label>
+                          <input
+                            type="text"
+                            id="openai-key"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                            placeholder="sk-..."
+                            value={openaiKey}
+                            onChange={(e) => setOpenaiKey(e.target.value)}
+                          />
+                          <p className="mt-1 text-xs text-gray-500">
+                            Enter OpenAI API key or OpenRouter API key.
+                          </p>
+                        </div>
+                        
+                        <div>
+                          <label htmlFor="openai-model" className="block text-sm font-medium text-gray-700">
+                            Model
+                          </label>
+                          <select
+                            id="openai-model"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                            value={openaiModel}
+                            onChange={(e) => setOpenaiModel(e.target.value)}
+                          >
+                            <option value="">Select a model</option>
+                            {modelOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="mt-1 text-xs text-gray-500">
+                            Select the model to use for DeepResearch.
+                          </p>
+                        </div>
+
+                        <div>
+                          <label htmlFor="openai-base-url" className="block text-sm font-medium text-gray-700">
+                            Base URL (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            id="openai-base-url"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                            placeholder="https://api.openai.com/v1"
+                            value={openaiBaseUrl}
+                            onChange={(e) => setOpenaiBaseUrl(e.target.value)}
+                          />
+                          <p className="mt-1 text-xs text-gray-500">
+                            Leave empty for OpenAI. For OpenRouter, use "https://openrouter.ai/api/v1".
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <label htmlFor="dappradar-key" className="block text-sm font-medium text-gray-700">
+                          API Key
+                        </label>
+                        <input
+                          type="text"
+                          id="dappradar-key"
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                          placeholder="Enter DappRadar API key"
+                          value={dappradarKey}
+                          onChange={(e) => setDappradarKey(e.target.value)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-6 flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    className="nordic-button nordic-button-secondary"
+                    onClick={onClose}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="nordic-button nordic-button-primary"
+                    onClick={handleSave}
+                  >
+                    Save
+                  </button>
+                </div>
+              </Dialog.Panel>
+            </Transition.Child>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave}>Save Settings</Button>
-          </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </Dialog>
+    </Transition>
   );
-}
+};
+
+export default ApiSettingsModal;

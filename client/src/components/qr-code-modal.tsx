@@ -1,144 +1,166 @@
-import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/hooks/use-toast";
-import QRCode from "qrcode";
-import { Download } from "lucide-react";
+import React, { useState, useEffect } from 'react';
+import { Dialog, Transition } from '@headlessui/react';
+import { XMarkIcon } from '@heroicons/react/24/outline';
+import { DApp } from '@/types/dapp';
+import QRCode from 'qrcode';
 
 interface QRCodeModalProps {
   isOpen: boolean;
   onClose: () => void;
+  favorites?: DApp[];
+  dapp?: DApp;
+  triggerRef?: React.RefObject<HTMLElement>;
 }
 
-export function QRCodeModal({ isOpen, onClose }: QRCodeModalProps) {
-  const { toast } = useToast();
-  const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  
-  const { data: favorites, isLoading } = useQuery({
-    queryKey: ['/api/favorites'],
-  });
-  
+const QRCodeModal: React.FC<QRCodeModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  favorites, 
+  dapp,
+  triggerRef 
+}) => {
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
+  const [animationOrigin, setAnimationOrigin] = useState({ x: 0, y: 0 });
+
   useEffect(() => {
-    if (isOpen && favorites && favorites.length > 0 && !isLoading) {
+    if (isOpen) {
       generateQRCode();
-    }
-  }, [isOpen, favorites, isLoading]);
-  
-  const generateQRCode = async () => {
-    if (!favorites || favorites.length === 0) return;
-    
-    setIsGenerating(true);
-    
-    try {
-      // Create a JSON object with the favorites data
-      const favoritesData = favorites.map((favorite: any) => ({
-        id: favorite.dappData.id,
-        name: favorite.dappData.name,
-        website: favorite.dappData.website,
-        category: favorite.dappData.category
-      }));
       
-      // Create a serialized version
-      const dataString = JSON.stringify({
-        type: "dapp-explorer-favorites",
-        data: favoritesData
-      });
+      // アニメーションの原点を設定
+      if (triggerRef?.current) {
+        const rect = triggerRef.current.getBoundingClientRect();
+        setAnimationOrigin({
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2
+        });
+      } else {
+        setAnimationOrigin({
+          x: window.innerWidth / 2,
+          y: window.innerHeight / 2
+        });
+      }
+    }
+  }, [isOpen, favorites]);
+
+  const generateQRCode = async () => {
+    if (favorites?.length === 0 && !dapp) return;
+
+    try {
+      // Create a data structure to represent favorites
+      const favoritesData = {
+        type: 'dapp-explorer-favorites',
+        version: '1.0',
+        favorites: favorites?.map(dapp => ({
+          id: dapp.id,
+          name: dapp.name,
+          category: dapp.category,
+          website: dapp.website,
+          description: dapp.description?.substring(0, 100) // Limit description length
+        })) || []
+      };
+
+      // Convert to JSON string
+      const jsonData = JSON.stringify(favoritesData);
       
       // Generate QR code
-      if (canvasRef.current) {
-        await QRCode.toCanvas(canvasRef.current, dataString, {
-          width: 256,
-          margin: 2,
-          color: {
-            dark: "#1E3A8A", // primary-900
-            light: "#FFFFFF" // white
-          }
-        });
-        
-        // Convert canvas to data URL
-        const dataUrl = canvasRef.current.toDataURL("image/png");
-        setQrCodeUrl(dataUrl);
-      }
-    } catch (error) {
-      console.error("Error generating QR code:", error);
-      toast({
-        title: "Error",
-        description: "Failed to generate QR code. Please try again.",
-        variant: "destructive",
+      const dataUrl = await QRCode.toDataURL(jsonData, {
+        errorCorrectionLevel: 'M',
+        margin: 1,
+        width: 300,
+        color: {
+          dark: '#000000',
+          light: '#ffffff'
+        }
       });
-    } finally {
-      setIsGenerating(false);
+      
+      setQrCodeDataUrl(dataUrl);
+    } catch (error) {
+      console.error('Failed to generate QR code:', error);
     }
   };
-  
-  const handleDownload = () => {
-    if (!qrCodeUrl) return;
-    
-    const link = document.createElement("a");
-    link.href = qrCodeUrl;
-    link.download = "dapp-favorites-qrcode.png";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast({
-      title: "QR Code Downloaded",
-      description: "Your collection QR code has been downloaded.",
-    });
-  };
-  
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Your Collection QR Code</DialogTitle>
-          <DialogDescription>
-            Share this QR code to let others import your collection.
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="flex justify-center my-4">
-          {isLoading || isGenerating ? (
-            <Skeleton className="h-64 w-64 rounded-lg" />
-          ) : !favorites || favorites.length === 0 ? (
-            <div className="h-64 w-64 bg-gray-100 rounded-lg flex items-center justify-center text-center p-4">
-              <p className="text-gray-500">No favorites to generate QR code</p>
-            </div>
-          ) : (
-            <div className="bg-white p-2 border border-gray-200 rounded-lg">
-              <canvas ref={canvasRef} className="h-64 w-64 rounded-lg" />
-            </div>
-          )}
+    <Transition.Root show={isOpen} as={React.Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <Transition.Child
+              as={React.Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0"
+              enterTo="opacity-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100"
+              leaveTo="opacity-0"
+            >
+              <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
+            </Transition.Child>
+
+            <Transition.Child
+              as={React.Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 translate-y-4 scale-95"
+              enterTo="opacity-100 translate-y-0 scale-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 translate-y-0 scale-100"
+              leaveTo="opacity-0 translate-y-4 scale-95"
+            >
+              <Dialog.Panel 
+                className="relative w-full max-w-md transform overflow-hidden rounded-lg bg-white p-6 shadow-xl transition-all"
+                style={{
+                  transformOrigin: `${animationOrigin.x}px ${animationOrigin.y}px`
+                }}
+              >
+                <div className="absolute right-0 top-0 pr-4 pt-4">
+                  <button
+                    type="button"
+                    className="rounded-md bg-white text-gray-400 hover:text-gray-500"
+                    onClick={onClose}
+                  >
+                    <span className="sr-only">Close</span>
+                    <XMarkIcon className="h-6 w-6" aria-hidden="true" />
+                  </button>
+                </div>
+
+                <Dialog.Title as="h3" className="text-lg font-semibold leading-6 text-gray-900">
+                  Share Favorites via QR Code
+                </Dialog.Title>
+                
+                <div className="mt-4">
+                  {favorites?.length === 0 ? (
+                    <p className="text-gray-500">You don't have any favorites to share.</p>
+                  ) : qrCodeDataUrl ? (
+                    <div className="flex flex-col items-center">
+                      <div className="bg-white p-4 rounded-lg shadow-sm">
+                        <img src={qrCodeDataUrl} alt="QR Code for favorites" className="w-64 h-64" />
+                      </div>
+                      <p className="mt-4 text-sm text-gray-500 text-center">
+                        Scan this QR code with another dApp Explorer user to share your favorites list.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex justify-center">
+                      <div className="animate-pulse bg-gray-200 w-64 h-64 rounded-lg"></div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-6 flex justify-end">
+                  <button
+                    type="button"
+                    className="nordic-button nordic-button-secondary"
+                    onClick={onClose}
+                  >
+                    Close
+                  </button>
+                </div>
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
         </div>
-        
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onClose}
-          >
-            Close
-          </Button>
-          <Button
-            onClick={handleDownload}
-            disabled={!qrCodeUrl || isLoading || isGenerating}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Download
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </Dialog>
+    </Transition.Root>
   );
-}
+};
+
+export default QRCodeModal;

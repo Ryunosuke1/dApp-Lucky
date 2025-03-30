@@ -11,7 +11,16 @@ export interface DApp {
     activity?: string;
     volume?: string;
     balance?: string;
+    tvl?: string;  // Total Value Locked (DefiLlama specific)
   };
   chains?: string[];
   tags?: string[];
+  // DefiLlama固有のフィールド
+  socialLinks?: {
+    twitter?: string;
+    discord?: string;
+    telegram?: string;
+  };
+  auditInfo?: string[];
+  launchDate?: string | null;
 }

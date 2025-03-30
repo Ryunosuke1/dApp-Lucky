@@ -4,7 +4,6 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
-import { MainLayout } from "@/components/layout/main-layout";
 import { WagmiConfig } from "wagmi";
 import { wagmiConfig } from "./lib/web3-service";
 
@@ -21,9 +20,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <WagmiConfig config={wagmiConfig}>
-        <MainLayout>
-          <Router />
-        </MainLayout>
+        <Router />
         <Toaster />
       </WagmiConfig>
     </QueryClientProvider>

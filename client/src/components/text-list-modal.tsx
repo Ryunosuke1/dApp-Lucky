@@ -1,190 +1,178 @@
-import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-} from "@/components/ui/form";
-import { useToast } from "@/hooks/use-toast";
-import { DApp } from "@/types/dapp";
-import { shareTextSchema } from "@shared/schema";
-import { Copy } from "lucide-react";
+import React, { useState, useEffect } from 'react';
+import { Dialog, Transition } from '@headlessui/react';
+import { XMarkIcon } from '@heroicons/react/24/outline';
+import { DApp } from '@/types/dapp';
 
 interface TextListModalProps {
   isOpen: boolean;
   onClose: () => void;
+  favorites?: DApp[];
+  dapp?: DApp;
+  triggerRef?: React.RefObject<HTMLElement>;
 }
 
-export function TextListModal({ isOpen, onClose }: TextListModalProps) {
-  const { toast } = useToast();
-  const [selectedHashtags, setSelectedHashtags] = useState<string[]>(["#DeFi", "#Web3"]);
-  
-  const { data: favorites } = useQuery({
-    queryKey: ['/api/favorites'],
-  });
-  
-  const form = useForm({
-    resolver: zodResolver(shareTextSchema),
-    defaultValues: {
-      comment: "",
-      hashtags: ["#DeFi", "#Web3"]
-    },
-  });
-  
-  const generateTextList = () => {
-    if (!favorites || favorites.length === 0) {
-      return "My Favorite dApps:\n\nNo favorites yet!";
-    }
-    
-    const comment = form.getValues().comment;
-    
-    let text = "My Favorite dApps:\n\n";
-    
-    favorites.forEach((favorite: any, index: number) => {
-      const dapp = favorite.dappData as DApp;
-      text += `${index + 1}. ${dapp.name} (${dapp.website || "no website"})${dapp.category ? ` - ${dapp.category}` : ""}\n`;
-    });
-    
-    if (comment) {
-      text += `\n${comment}\n`;
-    }
-    
-    if (selectedHashtags.length > 0) {
-      text += `\n${selectedHashtags.join(" ")} #dAppExplorer`;
-    }
-    
-    return text;
-  };
-  
-  const textList = generateTextList();
-  
-  const handleCopyToClipboard = () => {
-    navigator.clipboard.writeText(textList).then(
-      () => {
-        toast({
-          title: "Copied to clipboard",
-          description: "Your dApp list has been copied to the clipboard.",
+const TextListModal: React.FC<TextListModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  favorites = [], // デフォルト値を設定して、undefinedを防ぐ
+  dapp,
+  triggerRef 
+}) => {
+  const [copied, setCopied] = useState(false);
+  const [animationOrigin, setAnimationOrigin] = useState({ x: 0, y: 0 });
+  const textAreaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setCopied(false);
+      
+      if (triggerRef?.current) {
+        const rect = triggerRef.current.getBoundingClientRect();
+        setAnimationOrigin({
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2
         });
-      },
-      () => {
-        toast({
-          title: "Copy failed",
-          description: "Failed to copy to clipboard. Please try again.",
-          variant: "destructive",
+      } else {
+        setAnimationOrigin({
+          x: window.innerWidth / 2,
+          y: window.innerHeight / 2
         });
       }
-    );
+    }
+  }, [isOpen, triggerRef]);
+
+  const generateTextList = () => {
+    if (favorites.length === 0 && !dapp) return '';
+
+    const header = '🔍 My Favorite dApps 🔍\n\n';
+    
+    const dappList = favorites.map((dapp, index) => {
+      const number = index + 1;
+      const name = dapp.name;
+      const category = dapp.category ? ` (${dapp.category})` : '';
+      const url = dapp.website || '';
+      
+      return `${number}. ${name}${category}${url ? ` - ${url}` : ''}`;
+    }).join('\n');
+
+    const hashtags = '\n\n#dAppExplorer #Web3 #Blockchain ' + 
+      favorites.map(dapp => `#${dapp.name.replace(/\s+/g, '')}`).join(' ');
+    
+    return header + dappList + hashtags;
   };
-  
-  const toggleHashtag = (hashtag: string) => {
-    if (selectedHashtags.includes(hashtag)) {
-      setSelectedHashtags(selectedHashtags.filter(h => h !== hashtag));
-    } else {
-      setSelectedHashtags([...selectedHashtags, hashtag]);
+
+  const handleCopy = () => {
+    if (textAreaRef.current) {
+      textAreaRef.current.select();
+      document.execCommand('copy');
+      setCopied(true);
+      
+      setTimeout(() => {
+        setCopied(false);
+      }, 2000);
     }
   };
-  
-  const availableHashtags = ["#DeFi", "#NFT", "#GameFi", "#Web3", "#Ethereum", "#Social"];
-  
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Your dApp Collection</DialogTitle>
-          <DialogDescription>
-            Copy and share your favorite dApps with others.
-          </DialogDescription>
-        </DialogHeader>
-        
-        <Form {...form}>
-          <form className="space-y-4">
-            <FormField
-              control={form.control}
-              name="comment"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Personal Comment</FormLabel>
-                  <FormControl>
-                    <Input 
-                      {...field} 
-                      placeholder="These are my go-to dApps for..."
-                      onChange={(e) => {
-                        field.onChange(e);
-                        // Force re-render to update text
-                        form.setValue("comment", e.target.value);
-                      }}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-            
-            <div>
-              <Label className="block text-sm font-medium text-gray-700 mb-1">
-                Add hashtags
-              </Label>
-              <div className="flex flex-wrap gap-2">
-                {availableHashtags.map((hashtag) => (
-                  <Badge
-                    key={hashtag}
-                    variant={selectedHashtags.includes(hashtag) ? "default" : "outline"}
-                    className="cursor-pointer hover:bg-primary-200"
-                    onClick={() => toggleHashtag(hashtag)}
+    <Transition.Root show={isOpen} as={React.Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <Transition.Child
+              as={React.Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0"
+              enterTo="opacity-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100"
+              leaveTo="opacity-0"
+            >
+              <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
+            </Transition.Child>
+
+            <Transition.Child
+              as={React.Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 translate-y-4 scale-95"
+              enterTo="opacity-100 translate-y-0 scale-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 translate-y-0 scale-100"
+              leaveTo="opacity-0 translate-y-4 scale-95"
+            >
+              <Dialog.Panel 
+                className="relative w-full max-w-md transform overflow-hidden rounded-lg bg-white p-6 shadow-xl transition-all"
+                style={{
+                  transformOrigin: `${animationOrigin.x}px ${animationOrigin.y}px`
+                }}
+              >
+                <div className="absolute right-0 top-0 pr-4 pt-4">
+                  <button
+                    type="button"
+                    className="rounded-md bg-white text-gray-400 hover:text-gray-500"
+                    onClick={onClose}
                   >
-                    {hashtag}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-            
-            <div>
-              <Label htmlFor="textListOutput" className="block text-sm font-medium text-gray-700 mb-1">
-                Generated Text
-              </Label>
-              <Textarea
-                id="textListOutput"
-                value={textList}
-                rows={8}
-                readOnly
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-              />
-            </div>
-          </form>
-        </Form>
-        
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onClose}
-          >
-            Close
-          </Button>
-          <Button
-            onClick={handleCopyToClipboard}
-          >
-            <Copy className="mr-2 h-4 w-4" />
-            Copy to Clipboard
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+                    <span className="sr-only">Close</span>
+                    <XMarkIcon className="h-6 w-6" aria-hidden="true" />
+                  </button>
+                </div>
+
+                <Dialog.Title as="h3" className="text-lg font-semibold leading-6 text-gray-900">
+                  Share Favorites as Text
+                </Dialog.Title>
+                
+                <div className="mt-4">
+                  {favorites.length === 0 && !dapp ? (
+                    <p className="text-gray-500">You don't have any favorites to share.</p>
+                  ) : (
+                    <>
+                      <p className="text-sm text-gray-500 mb-2">
+                        Copy this text to share your favorite dApps on social media:
+                      </p>
+                      <div className="relative">
+                        <label htmlFor="share-text" className="sr-only">
+                          Shareable text content
+                        </label>
+                        <textarea
+                          id="share-text"
+                          ref={textAreaRef}
+                          className="w-full h-48 p-3 border border-gray-300 rounded-md text-sm"
+                          value={generateTextList()}
+                          readOnly
+                          aria-label="Favorite dApps list text content"
+                          aria-readonly="true"
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="mt-6 flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    className="nordic-button nordic-button-secondary"
+                    onClick={onClose}
+                    aria-label="Close modal"
+                  >
+                    Close
+                  </button>
+                  {favorites.length > 0 && (
+                      <button
+                        type="button"
+                        className="nordic-button nordic-button-primary"
+                        onClick={handleCopy}
+                        aria-label={copied ? "Text copied to clipboard" : "Copy text to clipboard"}
+                      >
+                      {copied ? 'Copied!' : 'Copy to Clipboard'}
+                    </button>
+                  )}
+                </div>
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition.Root>
   );
-}
+};
+
+export default TextListModal;

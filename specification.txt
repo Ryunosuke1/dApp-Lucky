@@ -1,0 +1,62 @@
+以下のようなMetamaskと連携するWagmiとReactのアプリを機能はそのままでUIをリエンジニアリングで完璧に実装してほしい。ユーザーのMetamaskにユーザーのお気に入りリストを順番付きで保存できるようにしたい。DefiLLamaのOpen APIと連携して実装したい。
+Web上最新のドキュメントに従って実装してほしい。
+プロジェクトディレクトリは
+1. ランダムdApp表示＆お気に入り機能
+dAppリストからランダムにdAppを1つ表示
+dAppの簡単な説明、スクリーンショット、リンクを表示
+「お気に入りに追加」ボタンを設置
+お気に入りリストでdAppをドラッグ＆ドロップで並び替え可能
+2. DeepResearch機能
+「DeepResearch」ボタンを設置
+ボタンを押すと、LLMがdAppに関する情報をWeb上から収集し、要約して表示
+dAppの機能、特徴、評判、関連ニュースなどを表示
+ユーザーはより深くdAppについて知ることができる
+3. 斬新な発見＆体験
+dAppのカテゴリ（DeFi、NFT、GameFiなど）をランダムに表示
+カテゴリに関連するdAppをランダムに表示
+ユーザーは今まで知らなかった新しいdAppに出会える
+ユーザーは自分の体験を共有したり、他のユーザーの体験を参考にしたりできる*1
+4. ユーザーインターフェース
+直感的で使いやすいインターフェース
+dAppのスクリーンショットやアイコンを大きく表示
+DeepResearchの結果を分かりやすく表示
+お気に入りリストの並び替えがスムーズに行える
+NordHealthのライブラリを使ったNordic UI
+*1 ユーザーの興味や関心に合わせてdAppをレコメンド：
+1. テキスト形式での共有機能
+お気に入りリストをテキスト形式で生成するボタンを設置
+生成されるテキストは、dApp名とURLのリスト
+例：
+Uniswap (uniswap.org)
+ChainGPT (chaingpt...)
+Aave (aave.com)
+生成されたテキストをクリップボードにコピーする機能
+Twitter、Facebook、DiscordなどのSNSで共有しやすいように、テキストを最適化
+2. 共有機能の拡張
+お気に入りリストにコメントを追加できる機能
+各dAppの簡単な説明や、おすすめポイントなどを記述可能
+ハッシュタグを自動生成する機能
+dAppに関連するハッシュタグを自動的に追加
+例：#DeFi #Uniswap #dApp
+共有するSNSを選択できる機能
+Twitter、Facebook、Discordなど、複数のSNSに対応
+QRコードで他のユーザーのお気に入りリストを読み込んで、ユーザーのMetamaskにおいて保存できる
+以下の評価基準で考えてほしい。どれも満たすように
+Functionality & Technical Execution:
+How complete is the project?
+Does it work as intended, with minimal bugs or issues?
+How technically sophisticated is the solution?
+Does it properly integrate the MetaMask SDK instead of relying on window.ethereum?
+User Experience (UX) & Ease of Use:
+How intuitive is the project for new users?
+Is the onboarding process smooth and easy to follow?
+If there’s a tutorial, is it clear and helpful?
+Does the UI design enhance usability?
+Originality & Innovation:
+Is the idea fresh and innovative?
+Does it push the boundaries of on-chain applications?
+Is it an improvement on existing Web3 solutions?
+"This is just really cool" Factor:
+Is the project fun and exciting to interact with?
+Does it have a unique vibe or unexpected wow factor?
+Would we genuinely love to see this used in the real world?

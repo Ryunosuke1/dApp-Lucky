@@ -1,498 +1,414 @@
-import { useState, useEffect } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Progress } from "@/components/ui/progress";
-import { X, Settings, Zap } from "lucide-react";
-import { DApp } from "@/types/dapp";
-import { useToast } from "@/hooks/use-toast";
-import { performResearch, ResearchResponse } from "@/lib/openrouter-service";
-import { ApiSettings } from "./api-settings-modal";
-import { DeepResearchOutput, ensureValidResearchOutput } from "@/lib/langchain-research";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { Tab } from '@headlessui/react';
+import type { DApp } from '../../../shared/schema';
+import { DeepResearchOutput } from '@/lib/deep-research-service';
+import { useApiSettings } from '@/hooks/use-api-settings';
+import { createDeepResearchService } from '@/lib/deep-research-service';
+import { ArrowDownTrayIcon, ExclamationTriangleIcon, ShieldCheckIcon, ShieldExclamationIcon, HeartIcon, ShareIcon, QrCodeIcon } from '@heroicons/react/24/outline';
+import { addFavorite, loadFavoritesFromMetaMask } from '@/lib/metamask-service';
+import ApiSettingsModal from './api-settings-modal';
 
 interface DeepResearchPanelProps {
   dapp: DApp;
-  onClose: () => void;
-  apiSettings: ApiSettings;
+  isOpen: boolean;
+  triggerRef?: React.RefObject<HTMLElement>;
+  onShare?: () => void;
+  onShowQr?: () => void;
 }
 
-export function DeepResearchPanel({ dapp, onClose, apiSettings }: DeepResearchPanelProps) {
-  const { toast } = useToast();
-  const [research, setResearch] = useState<{
-    overview?: string;
-    features?: string[];
-    developments?: { date: string; description: string }[];
-    sentiment?: { positive: number; count?: number };
-    competitors?: string[];
-    strengths?: string[];
-    weaknesses?: string[];
-    futureOutlook?: string;
-    useClientApi?: boolean;
-  } | null>(null);
-  
-  // Progress tracking for research (0-100)
-  const [researchProgress, setResearchProgress] = useState<number>(0);
-  const [researchStage, setResearchStage] = useState<string>("");
-  
-  const researchMutation = useMutation({
-    mutationFn: async () => {
-      // Reset progress
-      setResearchProgress(5);
-      setResearchStage("Preparing...");
+interface TabClassNameProps {
+  selected: boolean;
+}
+
+function classNames(...classes: string[]) {
+  return classes.filter(Boolean).join(' ');
+}
+
+const DeepResearchPanel: React.FC<DeepResearchPanelProps> = ({ dapp, isOpen, triggerRef, onShare, onShowQr }) => {
+  const { settings } = useApiSettings();
+  const [isLoading, setIsLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [status, setStatus] = useState('');
+  const [result, setResult] = useState<DeepResearchOutput | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [isAddingFavorite, setIsAddingFavorite] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  const handleAddToFavorites = useCallback(async () => {
+    if (isAddingFavorite) return;
+    setIsAddingFavorite(true);
+    try {
+      const favorites = await loadFavoritesFromMetaMask();
+      await addFavorite(dapp, favorites || []);
+      setIsFavorite(true);
+    } catch (error) {
+      console.error('Error adding to favorites:', error);
+    } finally {
+      setIsAddingFavorite(false);
+    }
+  }, [dapp, isAddingFavorite]);
+
+  const downloadReport = useCallback(() => {
+    if (!result) return;
+    const jsonString = JSON.stringify(result, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${dapp.name}-deep-research.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [result, dapp.name]);
+
+  const performDeepResearch = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    setProgress(0);
+    try {
+      const service = createDeepResearchService(settings);
+      const result = await service.analyze(dapp, {
+        onProgress: (progress, status) => {
+          setProgress(progress);
+          setStatus(status);
+        }
+      });
+      setResult(result);
+    } catch (error) {
+      console.error('Deep research error:', error);
+      setError(error instanceof Error ? error.message : '分析中にエラーが発生しました');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [dapp, settings]);
+
+  useEffect(() => {
+    if (isOpen && !result && !isLoading) {
+      performDeepResearch();
+    }
+  }, [isOpen, result, isLoading, performDeepResearch]);
+
+  // アニメーション計算の最適化
+  useEffect(() => {
+    if (isOpen && triggerRef?.current && panelRef.current) {
+      const trigger = triggerRef.current.getBoundingClientRect();
+      const panel = panelRef.current.getBoundingClientRect();
       
-      // Simulate gradual progress updates
-      const progressInterval = setInterval(() => {
-        setResearchProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return prev;
-          }
-          
-          // Update the research stage based on progress
-          if (prev === 5) {
-            setResearchStage("Initial analysis...");
-          } else if (prev === 25) {
-            setResearchStage("Evaluating features...");
-          } else if (prev === 45) {
-            setResearchStage("Market analysis...");
-          } else if (prev === 65) {
-            setResearchStage("Calculating community sentiment...");
-          } else if (prev === 85) {
-            setResearchStage("Generating final report...");
-          }
-          
-          return prev + (20 * Math.random());
-        });
-      }, 2000);
-      
-      try {
-        // Pass apiSettings (can be undefined) to let the service decide whether to use client or server API
-        const result = await performResearch({
-          dappName: dapp.name,
-          dappDescription: dapp.description,
-          category: dapp.category,
-          chains: dapp.chains
-        }, apiSettings?.apiKey && apiSettings.baseUrl ? apiSettings : undefined);
+      requestAnimationFrame(() => {
+        const triggerCenterX = trigger.left + trigger.width / 2;
+        const triggerCenterY = trigger.top + trigger.height / 2;
+        const panelCenterX = panel.left + panel.width / 2;
+        const panelCenterY = panel.top + panel.height / 2;
         
-        // Set to 100% when done
-        clearInterval(progressInterval);
-        setResearchProgress(100);
-        setResearchStage("Complete!");
+        const translateX = triggerCenterX - panelCenterX;
+        const translateY = triggerCenterY - panelCenterY;
         
-        return result;
-      } catch (error) {
-        clearInterval(progressInterval);
-        setResearchProgress(0);
-        setResearchStage("Error occurred");
-        throw error;
-      }
-    },
-    onSuccess: (data: ResearchResponse) => {
-      try {
-        console.log("Research data received:", data);
-        
-        // Check if we have structured data from LangChain
-        if (data.structured) {
-          console.log("Using structured data from LangChain");
-          // Use our validation function to ensure all fields are present
-          const structuredOutput = ensureValidResearchOutput(data.structured);
-          
-          const researchData = {
-            ...structuredOutput,
-            useClientApi: !!apiSettings?.apiKey
-          };
-          
-          console.log("Structured research data ready:", researchData);
-          setResearch(researchData);
-          return;
-        }
-        
-        // Fallback to older parser for unstructured data
-        console.log("No structured data, parsing text response");
-        // Try to parse the research content with improved parser
-        const researchText = data.research.trim();
-        
-        // Split by sections using patterns like "# Section" or "## Section" or "Section:" or numbered lists "1. Section"
-        const sectionPattern = /(?:^|\n)(?:#{1,3} |(\d+)\. |([A-Za-z ]+):)/g;
-        
-        // Alternative to matchAll for better TypeScript compatibility
-        const sectionMatches: { index: number, text: string }[] = [];
-        let match;
-        while ((match = sectionPattern.exec(researchText)) !== null) {
-          sectionMatches.push({ 
-            index: match.index,
-            text: match[0]
-          });
-        }
-        
-        // If we couldn't find sections with headings, try paragraphs
-        const sections = sectionMatches.length > 1 
-          ? sectionMatches.map((match, index) => {
-              const startIdx = match.index;
-              const endIdx = index < sectionMatches.length - 1 ? sectionMatches[index + 1].index : researchText.length;
-              return researchText.substring(startIdx, endIdx).trim();
-            })
-          : researchText.split(/\n{2,}/); // Fall back to paragraph splitting
-        
-        const researchData: any = {
-          useClientApi: !!apiSettings?.apiKey
-        };
-        
-        // Find Overview section
-        const overviewSection = sections.find(s => 
-          s.toLowerCase().startsWith('overview') || 
-          s.toLowerCase().startsWith('# overview') || 
-          s.toLowerCase().startsWith('## overview') ||
-          s.toLowerCase().startsWith('1. overview')
-        );
-        
-        if (overviewSection) {
-          // Extract text after the heading
-          const cleanOverview = overviewSection.replace(/^(?:#{1,3} |(\d+)\. |)overview:?/i, '').trim();
-          researchData.overview = cleanOverview;
-        } else {
-          // If no overview section found, use the first paragraph
-          researchData.overview = sections[0];
-        }
-        
-        // Find Key Features section
-        const featuresSection = sections.find(s => 
-          s.toLowerCase().includes('features') || 
-          s.toLowerCase().includes('capabilities') ||
-          s.toLowerCase().includes('key aspects')
-        );
-        
-        if (featuresSection) {
-          // Look for bullet points or numbered items
-          const features = featuresSection.split('\n')
-            .filter(line => /^\s*[-•*]|\d+\./.test(line.trim()))
-            .map(line => line.trim().replace(/^\s*[-•*]\s*|\d+\.\s*/, ''));
-          
-          if (features.length > 0) {
-            researchData.features = features;
-          } else {
-            // If no bullet points, just grab everything after the heading
-            const cleanFeatures = featuresSection
-              .replace(/^(?:#{1,3} |(\d+)\. |)(?:key |)features:?/i, '')
-              .trim()
-              .split(/\n+/);
-            if (cleanFeatures.length > 0) {
-              researchData.features = cleanFeatures;
-            }
-          }
-        }
-        
-        // Find Recent Developments section
-        const developmentsSection = sections.find(s => 
-          s.toLowerCase().includes('developments') || 
-          s.toLowerCase().includes('updates') || 
-          s.toLowerCase().includes('news') ||
-          s.toLowerCase().includes('timeline')
-        );
-        
-        if (developmentsSection) {
-          // Try to match patterns like "Month Year: Description" or "Month Year - Description"
-          const devRegex = /(?:^|\n)(?:[-•*]|\d+\.|\s*)?((?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december|early|mid|late|q[1-4]|[12][0-9]{3})[a-z.,\s]*(?:20[0-9]{2})?)\s*[:-]\s*([^\n]+)/gi;
-          
-          // Alternative to matchAll for better TypeScript compatibility
-          const devMatches: Array<RegExpExecArray> = [];
-          let devMatch;
-          while ((devMatch = devRegex.exec(developmentsSection)) !== null) {
-            devMatches.push(devMatch);
-          }
-          
-          if (devMatches.length > 0) {
-            researchData.developments = devMatches.map(match => ({
-              date: match[1].trim(),
-              description: match[2].trim()
-            }));
-          }
-        }
-        
-        // Extract sentiment data
-        const sentimentRegex = /(\d+)%\s*(?:positive|favorable|approving)/i;
-        const sentimentMatch = researchText.match(sentimentRegex);
-        
-        if (sentimentMatch) {
-          researchData.sentiment = {
-            positive: parseInt(sentimentMatch[1]),
-            count: 0 // Default
-          };
-          
-          // Try to find the count of mentions
-          const countRegex = /(?:based on|from|across|analyzing)\s+(?:approximately\s+)?(\d+|a few|several|many|hundreds of|thousands of)/i;
-          const countMatch = researchText.match(countRegex);
-          
-          if (countMatch) {
-            const countText = countMatch[1].toLowerCase();
-            // Convert text counts to numbers
-            let count = 0;
-            if (/^\d+$/.test(countText)) {
-              count = parseInt(countText);
-            } else if (countText.includes('few')) {
-              count = 5;
-            } else if (countText.includes('several')) {
-              count = 10;
-            } else if (countText.includes('many')) {
-              count = 50;
-            } else if (countText.includes('hundreds')) {
-              count = 200;
-            } else if (countText.includes('thousands')) {
-              count = 1000;
-            }
-            
-            if (count > 0) {
-              researchData.sentiment.count = count;
-            }
-          }
-        }
-        
-        console.log("Parsed research data:", researchData);
-        setResearch(researchData);
-      } catch (error) {
-        console.error("Error parsing research response:", error);
-        // Fallback to displaying the raw response
-        setResearch({
-          overview: data.research,
-          useClientApi: !!apiSettings?.apiKey
-        });
-      }
-    },
-    onError: (error) => {
-      console.error("Research error:", error);
-      toast({
-        title: "Research Failed",
-        description: apiSettings?.apiKey
-          ? "Unable to perform deep research with your API key. Please check your API settings and try again."
-          : "Unable to perform deep research. Server might not have API keys configured. Try providing your own API key.",
-        variant: "destructive",
+        panelRef.current?.style.setProperty('--animation-translate-x', `${translateX}px`);
+        panelRef.current?.style.setProperty('--animation-translate-y', `${translateY}px`);
+        panelRef.current?.style.setProperty('--animation-scale', '0.1');
       });
     }
-  });
-  
-  // Function to retry research
-  const retryResearch = () => {
-    // Reset states before starting a new research
-    setResearch(null);
-    setResearchProgress(0);
-    setResearchStage("");
-    // Start the research
-    researchMutation.mutate();
-  };
-  
-  useEffect(() => {
-    researchMutation.mutate();
-  }, [dapp.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  
-  return (
-    <div className="p-6 border-t border-gray-200">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center">
-          <h3 className="text-lg font-medium text-gray-900 heading">Deep Research</h3>
-          {research?.useClientApi !== undefined && (
-            <span className={`ml-2 text-xs px-2 py-1 rounded-full ${research.useClientApi ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-              {research.useClientApi ? 'Client API' : 'Server API'}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {!researchMutation.isPending && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={retryResearch}
-              disabled={researchMutation.isPending}
-            >
-              Retry
-            </Button>
-          )}
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={onClose}
+  }, [isOpen, triggerRef]);
+
+  const memoizedTabs = useMemo(() => (
+    <Tab.Group>
+      <Tab.List className="nordic-tabs">
+        {['Overview', 'Features & Development', 'Market Analysis', 'Technical & Security', 'Investment & Risks'].map((tab) => (
+          <Tab
+            key={tab}
+            className={({ selected }) =>
+              classNames(
+                'nordic-tab',
+                selected ? 'nordic-tab-active' : ''
+              )
+            }
           >
-            <X className="h-5 w-5" />
-          </Button>
+            {tab}
+          </Tab>
+        ))}
+      </Tab.List>
+    </Tab.Group>
+  ), []);
+
+  const memoizedLoadingIndicator = useMemo(() => (
+    isLoading && (
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-medium text-gray-700">{status}</span>
+          <span className="text-sm font-medium text-gray-700">{Math.round(progress)}%</span>
+        </div>
+        <div className="nordic-progress-bar">
+          <div 
+            className="nordic-progress-bar-fill transition-all duration-300 ease-in-out" 
+            style={{ width: `${progress}%` }}
+          ></div>
         </div>
       </div>
-      
-      <Card className="bg-gray-50 rounded-xl p-4">
-        {researchMutation.isPending ? (
-          <div className="space-y-4">
-            <div className="flex flex-col items-center gap-2 mb-4">
-              <Progress className="w-full h-2" value={researchProgress} />
-              <p className="text-center text-sm text-gray-500 mb-4">
-                <span className="font-medium">{researchStage}</span>
-                <br />
-                <span className="text-xs">Researching {dapp.name}...</span>
-              </p>
-            </div>
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-3/4" />
-            <div className="pt-4 pb-2 border-b border-gray-200">
-              <Skeleton className="h-5 w-32 mb-2" />
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-2/3" />
-              </div>
-            </div>
-            <div className="pt-2 pb-2 border-b border-gray-200">
-              <Skeleton className="h-5 w-32 mb-2" />
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-full" />
-              </div>
-            </div>
+    )
+  ), [isLoading, status, progress]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div 
+      ref={panelRef}
+      className="mt-6 nordic-card p-6 animate-dialog-expand will-change-transform"
+      style={{
+        '--animation-duration': '300ms',
+        '--animation-timing': 'cubic-bezier(0.16, 1, 0.3, 1)'
+      } as React.CSSProperties}
+    >
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold text-gray-900">DeepResearch: {dapp.name}</h2>
+        <div className="flex space-x-2">
+          <button
+            onClick={handleAddToFavorites}
+            disabled={isFavorite || isAddingFavorite}
+            className={`nordic-button ${isFavorite ? 'bg-pink-100 text-pink-600' : 'nordic-button-secondary'} flex items-center`}
+          >
+            <HeartIcon className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
+          </button>
+          {onShare && (
+            <button
+              onClick={onShare}
+              className="nordic-button nordic-button-secondary flex items-center"
+            >
+              <ShareIcon className="h-5 w-5" />
+            </button>
+          )}
+          {onShowQr && (
+            <button
+              onClick={onShowQr}
+              className="nordic-button nordic-button-secondary flex items-center"
+            >
+              <QrCodeIcon className="h-5 w-5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {memoizedLoadingIndicator}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+          <p>{error}</p>
+          <button 
+            onClick={performDeepResearch}
+            className="mt-2 nordic-button nordic-button-secondary"
+          >
+            Try Again
+          </button>
+        </div>
+      )}
+
+      {result && (
+        <div>
+          <div className="flex justify-end mb-4">
+            <button
+              onClick={downloadReport}
+              className="nordic-button nordic-button-secondary flex items-center"
+            >
+              <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
+              Download Report
+            </button>
           </div>
-        ) : researchMutation.isError ? (
-          <div className="py-8 flex flex-col items-center justify-center text-center">
-            <div className="text-red-500 mb-4 rounded-full bg-red-50 p-2">
-              <X className="h-8 w-8" />
-            </div>
-            <p className="text-gray-700 font-medium mb-2">Research Failed</p>
-            <p className="text-gray-500 mb-4">
-              {apiSettings?.apiKey 
-                ? "Unable to perform research with your API key. Check your settings." 
-                : "Server API key may be missing. Try providing your own API key."}
-            </p>
-            <Button onClick={retryResearch}>Try Again</Button>
-          </div>
-        ) : (
-          <>
-            {research ? (
+
+          {memoizedTabs}
+
+          <Tab.Panels className="mt-4">
+            <Tab.Panel className="space-y-4">
               <div>
-                <div className="mb-4 pb-4 border-b border-gray-200">
-                  <h4 className="font-semibold text-gray-900 mb-2">Overview</h4>
-                  <p className="text-gray-600 whitespace-pre-line">
-                    {research.overview || "No overview available."}
-                  </p>
+                <h3 className="text-lg font-medium text-gray-900">Overview</h3>
+                <p className="mt-1 text-gray-600">{result.overview}</p>
+              </div>
+              
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">Community Sentiment</h3>
+                <div className="mt-2 flex items-center">
+                  <div className="nordic-progress-bar w-full mr-2">
+                    <div 
+                      className="bg-green-500 h-full rounded-full" 
+                      style={{ width: `${result.sentiment.positive}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-sm font-medium text-gray-700">{result.sentiment.positive}% Positive</span>
+                </div>
+                {result.sentiment.count && (
+                  <p className="mt-1 text-sm text-gray-500">Based on analysis of {result.sentiment.count} sources</p>
+                )}
+              </div>
+
+              {result.communityInsights && result.communityInsights.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Community Insights</h3>
+                  <ul className="mt-2 space-y-1 list-disc list-inside text-gray-600">
+                    {result.communityInsights.map((insight, index) => (
+                      <li key={index}>{insight}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </Tab.Panel>
+            
+            <Tab.Panel className="space-y-4">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">Key Features</h3>
+                <ul className="mt-2 space-y-2 list-disc list-inside text-gray-600">
+                  {result.features.map((feature, index) => (
+                    <li key={index}>{feature}</li>
+                  ))}
+                </ul>
+              </div>
+              
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">Recent Developments</h3>
+                <div className="mt-2 space-y-3">
+                  {result.developments.map((dev, index) => (
+                    <div key={index} className="flex">
+                      <div className="flex-shrink-0 w-24 text-sm font-medium text-gray-500">{dev.date}</div>
+                      <div className="ml-2 text-gray-600">{dev.description}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </Tab.Panel>
+            
+            <Tab.Panel className="space-y-4">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">Main Competitors</h3>
+                <ul className="mt-2 space-y-2 list-disc list-inside text-gray-600">
+                  {result.competitors.map((competitor, index) => (
+                    <li key={index}>{competitor}</li>
+                  ))}
+                </ul>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <h3 className="text-lg font-medium text-green-600">Strengths</h3>
+                  <ul className="mt-2 space-y-1 list-disc list-inside text-gray-600">
+                    {result.strengths.map((strength, index) => (
+                      <li key={index}>{strength}</li>
+                    ))}
+                  </ul>
                 </div>
                 
-                {research.features && research.features.length > 0 && (
-                  <div className="mb-4 pb-4 border-b border-gray-200">
-                    <h4 className="font-semibold text-gray-900 mb-2">Key Features</h4>
-                    <ul className="list-disc pl-5 text-gray-600 space-y-1">
-                      {research.features.map((feature, index) => (
-                        <li key={index}>{feature}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                
-                {research.developments && research.developments.length > 0 && (
-                  <div className="mb-4 pb-4 border-b border-gray-200">
-                    <h4 className="font-semibold text-gray-900 mb-2">Recent Developments</h4>
-                    <div className="space-y-3">
-                      {research.developments.map((dev, index) => (
-                        <div key={index} className="mb-2">
-                          <span className="text-xs font-medium bg-gray-100 text-gray-700 px-2 py-1 rounded">
-                            {dev.date}
-                          </span>
-                          <p className="text-gray-600 mt-1">{dev.description}</p>
-                        </div>
-                      ))}
+                <div>
+                  <h3 className="text-lg font-medium text-red-600">Weaknesses</h3>
+                  <ul className="mt-2 space-y-1 list-disc list-inside text-gray-600">
+                    {result.weaknesses.map((weakness, index) => (
+                      <li key={index}>{weakness}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">Future Outlook</h3>
+                <p className="mt-2 text-gray-600">{result.futureOutlook}</p>
+              </div>
+            </Tab.Panel>
+            
+            <Tab.Panel className="space-y-4">
+              {result.technicalAnalysis && (
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Technical Analysis</h3>
+                  <p className="mt-2 text-gray-600">{result.technicalAnalysis}</p>
+                </div>
+              )}
+              
+              {result.securityAudit && (
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Security Audit Status</h3>
+                  <div className="mt-2 p-4 rounded-lg border flex items-start">
+                    {result.securityAudit.status === 'audited' ? (
+                      <ShieldCheckIcon className="h-6 w-6 text-green-500 mr-2 flex-shrink-0" />
+                    ) : result.securityAudit.status === 'not_audited' ? (
+                      <ShieldExclamationIcon className="h-6 w-6 text-yellow-500 mr-2 flex-shrink-0" />
+                    ) : (
+                      <ExclamationTriangleIcon className="h-6 w-6 text-gray-400 mr-2 flex-shrink-0" />
+                    )}
+                    <div>
+                      <p className="font-medium">
+                        {result.securityAudit.status === 'audited' 
+                          ? 'Audited' 
+                          : result.securityAudit.status === 'not_audited' 
+                            ? 'Not Audited' 
+                            : 'Unknown Status'}
+                      </p>
+                      <p className="text-gray-600">{result.securityAudit.details}</p>
                     </div>
                   </div>
-                )}
-                
-                {research.sentiment && (
-                  <div className="mb-4 pb-4 border-b border-gray-200">
-                    <h4 className="font-semibold text-gray-900 mb-2">Community Sentiment</h4>
-                    <div className="flex items-center">
-                      <div className="w-full bg-gray-200 rounded-full h-2.5 mr-2">
-                        <Progress 
-                          value={research.sentiment.positive} 
-                          className={`h-2.5 ${
-                            research.sentiment.positive > 70 ? 'bg-green-500' : 
-                            research.sentiment.positive > 40 ? 'bg-amber-500' : 'bg-red-500'
-                          }`} 
-                        />
+                </div>
+              )}
+              
+              {result.additionalResources && result.additionalResources.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Additional Resources</h3>
+                  <ul className="mt-2 space-y-1 list-disc list-inside text-gray-600">
+                    {result.additionalResources.map((resource, index) => (
+                      <li key={index}>
+                        <a 
+                          href={resource.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline"
+                        >
+                          {resource.title}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </Tab.Panel>
+            
+            <Tab.Panel className="space-y-4">
+              {result.investmentPotential && (
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Investment Potential</h3>
+                  <div className="mt-2 p-4 rounded-lg bg-gray-50">
+                    <div className="flex items-center mb-2">
+                      <div className={classNames(
+                        "h-8 w-8 rounded-full flex items-center justify-center mr-3",
+                        result.investmentPotential.rating === 'high' ? 'bg-green-100 text-green-600' :
+                        result.investmentPotential.rating === 'medium' ? 'bg-yellow-100 text-yellow-600' :
+                        'bg-red-100 text-red-600'
+                      )}>
+                        <span className="font-semibold text-sm">
+                          {result.investmentPotential.rating.charAt(0).toUpperCase()}
+                        </span>
                       </div>
-                      <span className="ml-2 text-sm font-medium text-gray-700">
-                        {research.sentiment.positive}% Positive
+                      <span className="font-medium text-gray-900">
+                        {result.investmentPotential.rating.charAt(0).toUpperCase() + result.investmentPotential.rating.slice(1)} Investment Potential
                       </span>
                     </div>
-                    {research.sentiment.count && research.sentiment.count > 0 && (
-                      <p className="mt-2 text-sm text-gray-600">
-                        Based on {research.sentiment.count} recent social media mentions and forum discussions.
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {research.competitors && research.competitors.length > 0 && (
-                  <div className="mb-4 pb-4 border-b border-gray-200">
-                    <h4 className="font-semibold text-gray-900 mb-2">Competitors</h4>
-                    <ul className="list-disc pl-5 text-gray-600 space-y-1">
-                      {research.competitors.map((competitor, index) => (
-                        <li key={index}>{competitor}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                
-                {(research.strengths && research.strengths.length > 0) || (research.weaknesses && research.weaknesses.length > 0) ? (
-                  <div className="mb-4 pb-4 border-b border-gray-200">
-                    <h4 className="font-semibold text-gray-900 mb-2">Strengths & Weaknesses</h4>
-                    
-                    {research.strengths && research.strengths.length > 0 && (
-                      <div className="mb-3">
-                        <h5 className="text-sm font-medium text-green-700 mb-1">Strengths</h5>
-                        <ul className="list-disc pl-5 text-gray-600 space-y-1">
-                          {research.strengths.map((strength, index) => (
-                            <li key={index}>{strength}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    
-                    {research.weaknesses && research.weaknesses.length > 0 && (
-                      <div>
-                        <h5 className="text-sm font-medium text-amber-700 mb-1">Weaknesses</h5>
-                        <ul className="list-disc pl-5 text-gray-600 space-y-1">
-                          {research.weaknesses.map((weakness, index) => (
-                            <li key={index}>{weakness}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                ) : null}
-                
-                {research.futureOutlook && (
-                  <div className="mb-4 pb-4 border-b border-gray-200">
-                    <h4 className="font-semibold text-gray-900 mb-2">Future Outlook</h4>
-                    <p className="text-gray-600 whitespace-pre-line">
-                      {research.futureOutlook}
-                    </p>
-                  </div>
-                )}
-                
-                <div className="flex flex-col items-center justify-center gap-2 mt-5 pt-4 border-t border-gray-200 text-center">
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-gray-500">
-                      Research performed using {research.useClientApi ? 'client-side API with LangChain' : 'server-side API'}.
-                    </span>
-                    {research.useClientApi && <Zap className="h-3 w-3 text-amber-500" />}
-                  </div>
-                  <div className="mt-2 text-xs text-gray-400 max-w-md">
-                    <p>This research information is generated by AI and may contain inaccuracies or outdated information. Always verify with official sources before making important decisions.</p>
+                    <p className="text-gray-600">{result.investmentPotential.reasoning}</p>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="py-8 text-center">
-                <p className="text-gray-500 mb-4">No research data available</p>
-                <Button onClick={retryResearch}>Try Research Again</Button>
-              </div>
-            )}
-          </>
-        )}
-      </Card>
+              )}
+
+              {result.riskFactors && result.riskFactors.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-medium text-gray-900">Risk Factors</h3>
+                  <ul className="mt-2 space-y-2 list-disc list-inside text-gray-600">
+                    {result.riskFactors.map((risk, index) => (
+                      <li key={index} className="flex items-start">
+                        <ExclamationTriangleIcon className="h-5 w-5 text-yellow-500 mr-2 flex-shrink-0 mt-0.5" />
+                        <span>{risk}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </Tab.Panel>
+          </Tab.Panels>
+        </div>
+      )}
     </div>
   );
-}
+};
+
+export default React.memo(DeepResearchPanel);

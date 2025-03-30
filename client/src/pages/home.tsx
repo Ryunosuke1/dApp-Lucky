@@ -1,57 +1,79 @@
-import { useState } from "react";
-import { DiscoveryPanel } from "@/components/discovery-panel";
-import { FavoritesPanel } from "@/components/favorites-panel";
-import { ShareExperienceModal } from "@/components/share-experience-modal";
-import { TextListModal } from "@/components/text-list-modal";
-import { QRCodeModal } from "@/components/qr-code-modal";
+import { useState, useRef } from "react";
 import { DApp } from "@/types/dapp";
+import { MainLayout } from "@/components/layout/main-layout";
+import { useToast } from "@/hooks/use-toast";
+import ApiSettingsModal from "@/components/api-settings-modal";
+import TrendingDapps from "@/components/trending-dapps";
+import FavoritesPanel from "@/components/favorites-panel";
+import DiscoveryPanel from "@/components/discovery-panel";
+import { RandomDappCard } from "@/components/random-dapp-card";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function Home() {
-  const [showShareExperienceModal, setShowShareExperienceModal] = useState(false);
-  const [showTextListModal, setShowTextListModal] = useState(false);
-  const [showQRCodeModal, setShowQRCodeModal] = useState(false);
-  const [selectedDApp, setSelectedDApp] = useState<DApp | null>(null);
-  
+  const [currentDapp, setCurrentDapp] = useState<DApp | null>(null);
+  const [isApiSettingsOpen, setIsApiSettingsOpen] = useState(false);
+  const apiSettingsBtnRef = useRef<HTMLButtonElement>(null);
+  const { toast } = useToast();
+
+  const handleSelectTrendingDapp = (dapp: DApp) => {
+    setCurrentDapp(dapp);
+    toast({
+      title: "dApp Selected",
+      description: `${dapp.name} has been selected.`,
+    });
+  };
+
   return (
-    <main className="flex-grow">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Discovery Panel */}
-          <div className="lg:col-span-2">
-            <DiscoveryPanel
-              onShareExperience={() => {
-                setShowShareExperienceModal(true);
-              }}
-              onSetSelectedDApp={setSelectedDApp}
-            />
-          </div>
-          
-          {/* Favorites Panel */}
-          <div>
-            <FavoritesPanel
-              onGenerateTextList={() => setShowTextListModal(true)}
-              onGenerateQRCode={() => setShowQRCodeModal(true)}
-            />
+    <MainLayout>
+      <main className="flex-1 min-h-screen bg-gradient-to-b from-background to-muted/20">
+        <div className="container mx-auto px-4 py-6 lg:py-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* メインコンテンツエリア */}
+            <div className="lg:col-span-8 space-y-6">
+              {/* ランダムdAppカード */}
+              <section className="rounded-lg overflow-hidden">
+                <RandomDappCard />
+              </section>
+
+              {/* ディスカバリーパネル */}
+              <section className="rounded-lg overflow-hidden">
+                <DiscoveryPanel 
+                  dapp={currentDapp || undefined}
+                  onDeepResearch={() => {
+                    console.log("DeepResearch clicked");
+                  }}
+                  onLoadRandomDapp={() => {
+                    setCurrentDapp(null);
+                  }}
+                />
+              </section>
+            </div>
+
+            {/* サイドバーエリア */}
+            <div className="lg:col-span-4 space-y-6">
+              <ScrollArea className="h-[calc(100vh-6rem)]">
+                <div className="space-y-6 pr-4">
+                  {/* お気に入りパネル */}
+                  <section className="rounded-lg overflow-hidden backdrop-blur-sm bg-white/80">
+                    <FavoritesPanel currentDapp={currentDapp} />
+                  </section>
+
+                  {/* トレンドdApps */}
+                  <section className="rounded-lg overflow-hidden backdrop-blur-sm bg-white/80">
+                    <TrendingDapps onSelectDapp={handleSelectTrendingDapp} />
+                  </section>
+                </div>
+              </ScrollArea>
+            </div>
           </div>
         </div>
-      </div>
-      
-      {/* Modals */}
-      <ShareExperienceModal
-        isOpen={showShareExperienceModal}
-        onClose={() => setShowShareExperienceModal(false)}
-        dapp={selectedDApp}
+      </main>
+
+      <ApiSettingsModal
+        isOpen={isApiSettingsOpen}
+        onClose={() => setIsApiSettingsOpen(false)}
+        triggerRef={apiSettingsBtnRef}
       />
-      
-      <TextListModal
-        isOpen={showTextListModal}
-        onClose={() => setShowTextListModal(false)}
-      />
-      
-      <QRCodeModal
-        isOpen={showQRCodeModal}
-        onClose={() => setShowQRCodeModal(false)}
-      />
-    </main>
+    </MainLayout>
   );
 }

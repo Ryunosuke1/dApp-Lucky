@@ -1,0 +1,177 @@
+/* nordic.css */
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+  .scrollbar-thumb-gray-200 {
+    /* This class is used with ::-webkit-scrollbar-thumb below */
+  }
+  .scrollbar-track-transparent {
+    /* This class is used with ::-webkit-scrollbar-track below */
+  }
+}
+@layer base {
+  :root {
+    --background: 216 33% 97%;
+    --foreground: 215 24% 25%;
+    --card: 0 0% 100%;
+    --card-foreground: 215 24% 25%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 24% 25%;
+    --primary: 205 87% 67%;
+    --primary-foreground: 215 24% 25%;
+    --secondary: 214 31% 91%;
+    --secondary-foreground: 215 24% 25%;
+    --muted: 214 31% 91%;
+    --muted-foreground: 215 24% 45%;
+    --accent: 212 100% 87%;
+    --accent-foreground: 215 24% 25%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 205 87% 67%;
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  .dark {
+    --background: 215 25% 27%;
+    --foreground: 217 33% 97%;
+    --card: 215 25% 32%;
+    --card-foreground: 217 33% 97%;
+    --popover: 215 25% 32%;
+    --popover-foreground: 217 33% 97%;
+    --primary: 205 87% 67%;
+    --primary-foreground: 217 33% 97%;
+    --secondary: 215 25% 37%;
+    --secondary-foreground: 217 33% 97%;
+    --muted: 215 25% 37%;
+    --muted-foreground: 217 33% 87%;
+    --accent: 205 87% 67%;
+    --accent-foreground: 217 33% 97%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 215 25% 37%;
+    --input: 215 25% 37%;
+    --ring: 205 87% 67%;
+  }
+}
+
+/* Nordic Pattern */
+.nordic-pattern {
+  background-image: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M20 0l20 20-20 20L0 20z' fill='%23000000' fill-opacity='0.03'/%3E%3C/svg%3E");
+  background-size: 20px 20px;
+}
+
+.nordic-pattern-light {
+  background-image: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M20 0l20 20-20 20L0 20z' fill='%23FFFFFF' fill-opacity='0.05'/%3E%3C/svg%3E");
+  background-size: 20px 20px;
+}
+
+/* Nordic Layout & Spacing */
+.nordic-container {
+  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  @apply w-full;
+}
+
+.nordic-section {
+  @apply py-8 sm:py-12;
+}
+
+.nordic-spacing-y {
+  @apply space-y-6;
+}
+
+.nordic-card-content {
+  @apply p-6 space-y-4;
+}
+
+.nordic-section-spacing {
+  @apply my-8;
+}
+
+.nordic-responsive-container {
+  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  @apply w-full;
+}
+
+.nordic-responsive-grid {
+  @apply grid gap-6;
+  @apply grid-cols-1 sm:grid-cols-2 lg:grid-cols-3;
+}
+
+/* Scrollbar Styling */
+.nordic-scrollbar {
+  @apply scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent;
+  /* Note: 'scrollbar-width' and 'scrollbar-color' are for Firefox and newer Chrome versions */
+  scrollbar-width: thin;
+  scrollbar-color: theme('colors.gray.200') transparent;
+}
+
+.nordic-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.nordic-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.nordic-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-gray-200 rounded-full;
+}
+
+.nordic-scrollbar::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-300;
+}
+
+/* Nordic Card */
+.nordic-card {
+  @apply bg-card rounded-lg shadow-sm transition-all duration-200;
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0l30 30-30 30L0 30z' fill='%23FFFFFF' fill-opacity='0.03'/%3E%3C/svg%3E");
+  background-size: 30px 30px;
+}
+
+.nordic-card:hover {
+  @apply -translate-y-1 shadow-lg;
+}
+
+/* Nordic Button */
+.nordic-button {
+  @apply px-4 py-2 rounded-md font-medium transition-all duration-200;
+}
+
+.nordic-button-primary {
+  @apply bg-primary text-primary-foreground hover:bg-primary/90;
+}
+
+.nordic-button-secondary {
+  @apply bg-secondary text-secondary-foreground hover:bg-secondary/80;
+}
+
+/* Nordic Input */
+.nordic-input {
+  @apply border border-input rounded-md px-3 py-2 bg-background text-foreground;
+  @apply transition-all duration-200;
+  @apply focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50 focus:outline-none;
+}
+
+/* Nordic Navigation */
+.nordic-nav {
+  @apply flex space-x-4;
+}
+
+.nordic-nav-item {
+  @apply px-3 py-2 rounded-md text-sm font-medium;
+  @apply text-muted-foreground hover:text-foreground hover:bg-secondary;
+  @apply transition-all duration-200;
+}
+
+.nordic-nav-item-active {
+  @apply bg-primary text-primary-foreground;
+}
