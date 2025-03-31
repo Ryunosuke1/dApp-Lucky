@@ -26,17 +26,17 @@ export default function Home() {
   return (
     <MainLayout>
       <main className="flex-1 min-h-screen bg-gradient-to-b from-background to-muted/20">
-        <div className="container mx-auto px-4 py-6 lg:py-8">
+        <div className="nordic-container py-6 lg:py-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* メインコンテンツエリア */}
             <div className="lg:col-span-8 space-y-6">
               {/* ランダムdAppカード */}
-              <section className="rounded-lg overflow-hidden">
+              <section className="rounded-lg overflow-hidden nordic-card">
                 <RandomDappCard />
               </section>
 
               {/* ディスカバリーパネル */}
-              <section className="rounded-lg overflow-hidden">
+              <section className="rounded-lg overflow-hidden nordic-card">
                 <DiscoveryPanel 
                   dapp={currentDapp || undefined}
                   onDeepResearch={() => {
@@ -54,12 +54,12 @@ export default function Home() {
               <ScrollArea className="h-[calc(100vh-6rem)]">
                 <div className="space-y-6 pr-4">
                   {/* お気に入りパネル */}
-                  <section className="rounded-lg overflow-hidden backdrop-blur-sm bg-white/80">
+                  <section className="rounded-lg overflow-hidden nordic-card">
                     <FavoritesPanel currentDapp={currentDapp} />
                   </section>
 
                   {/* トレンドdApps */}
-                  <section className="rounded-lg overflow-hidden backdrop-blur-sm bg-white/80">
+                  <section className="rounded-lg overflow-hidden nordic-card">
                     <TrendingDapps onSelectDapp={handleSelectTrendingDapp} />
                   </section>
                 </div>
