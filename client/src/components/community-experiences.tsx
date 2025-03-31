@@ -28,7 +28,7 @@ export function CommunityExperiences({ dappId, onShareExperience }: CommunityExp
   };
   
   return (
-    <div className="p-6 border-t border-gray-200">
+    <div className="p-6 border-t border-gray-200 nordic-card">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-medium text-gray-900 heading">Community Experiences</h3>
         <Button 
@@ -54,7 +54,7 @@ export function CommunityExperiences({ dappId, onShareExperience }: CommunityExp
         ) : (
           <>
             {displayExperiences?.map((experience: Experience) => (
-              <div key={experience.id} className="bg-gray-50 rounded-xl p-4">
+              <div key={experience.id} className="bg-gray-50 rounded-xl p-4 nordic-card">
                 <div className="flex items-start">
                   <Avatar className="h-10 w-10 rounded-full bg-primary-100 text-primary-600">
                     <AvatarFallback>
@@ -119,7 +119,7 @@ function nameToInitials(name: string): string {
 
 function ExperienceSkeleton() {
   return (
-    <div className="bg-gray-50 rounded-xl p-4">
+    <div className="bg-gray-50 rounded-xl p-4 nordic-card">
       <div className="flex items-start">
         <Skeleton className="h-10 w-10 rounded-full" />
         <div className="ml-3 flex-1">

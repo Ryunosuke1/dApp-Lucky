@@ -95,7 +95,7 @@ const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onClose, tr
                 transformOrigin: `${animationOrigin.x}px ${animationOrigin.y}px`
               }}
             >
-              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-lg bg-white p-6 shadow-xl transition-all">
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-lg bg-white p-6 shadow-xl transition-all nordic-card">
                 <div className="absolute right-0 top-0 pr-4 pt-4">
                   <button
                     type="button"
@@ -148,7 +148,7 @@ const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onClose, tr
                           <input
                             type="text"
                             id="openai-key"
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm nordic-input"
                             placeholder="sk-..."
                             value={openaiKey}
                             onChange={(e) => setOpenaiKey(e.target.value)}
@@ -164,7 +164,7 @@ const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onClose, tr
                           </label>
                           <select
                             id="openai-model"
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm nordic-input"
                             value={openaiModel}
                             onChange={(e) => setOpenaiModel(e.target.value)}
                           >
@@ -187,7 +187,7 @@ const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onClose, tr
                           <input
                             type="text"
                             id="openai-base-url"
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm nordic-input"
                             placeholder="https://api.openai.com/v1"
                             value={openaiBaseUrl}
                             onChange={(e) => setOpenaiBaseUrl(e.target.value)}
@@ -205,7 +205,7 @@ const ApiSettingsModal: React.FC<ApiSettingsModalProps> = ({ isOpen, onClose, tr
                         <input
                           type="text"
                           id="dappradar-key"
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm nordic-input"
                           placeholder="Enter DappRadar API key"
                           value={dappradarKey}
                           onChange={(e) => setDappradarKey(e.target.value)}

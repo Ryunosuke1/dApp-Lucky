@@ -53,9 +53,44 @@ export function Header() {
   };
   
   return (
-    <NordHeader className="bg-white shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <NordHeader className="bg-white shadow-sm nordic-pattern">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between py-4">
+        <div className="flex items-center space-x-4">
+          <a href="/" className="text-xl font-semibold text-gray-900">dApp Explorer</a>
+        </div>
+        <div className="flex items-center space-x-4">
+          <Button
+            variant="primary"
+            onClick={handleWalletConnect}
+            disabled={isConnecting || isConnected}
+          >
+            {isConnecting ? "Connecting..." : isConnected ? "Connected" : "Connect Wallet"}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button ref={settingsBtnRef} variant="secondary">
+                <Settings className="mr-2 h-5 w-5" />
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onSelect={() => setIsApiSettingsOpen(true)}>
+                API Settings
+              </DropdownMenuItem>
+              {isConnected && (
+                <DropdownMenuItem onSelect={() => disconnect()}>
+                  Disconnect
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
+      <ApiSettingsModal
+        isOpen={isApiSettingsOpen}
+        onClose={() => setIsApiSettingsOpen(false)}
+        triggerRef={settingsBtnRef}
+      />
     </NordHeader>
   )
 }
